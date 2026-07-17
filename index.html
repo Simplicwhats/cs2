@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WEB CS 2 - VERSÃO FINAL REBALANCEADA</title>
+    <title>WEB CS 2 - GITHUB PAGES EDITION</title>
     <style>
         body {
             margin: 0; overflow: hidden;
@@ -153,8 +153,9 @@
     <div id="lock-warning">CLIQUE NA TELA PARA CONTROLAR O BONECO</div>
     <div id="canvas-container"></div>
 
+    <!-- BIBLIOTECAS CORRIGIDAS VIA HTTPS SEGURO -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
 
     <script>
         let gameMode = 'bot';
@@ -180,17 +181,22 @@
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room');
 
+        // Inicialização com tratamento para HTTPS/GitHub Pages
         if (roomId) {
             isHost = false; botActive = false; gameMode = 'p2p';
             document.getElementById('mode-p2p').classList.add('active');
             document.getElementById('mode-bot').classList.remove('active');
             netLinkSection.style.display = 'block';
+            netLinkSection.innerHTML = "<b style='color:#de9b35;'>Conectando à sala... Aguarde.</b>";
             initP2P(null, roomId);
         } else {
-            initP2P(Math.random().toString(36).substring(2, 8));
+            const generatedRoom = Math.random().toString(36).substring(2, 8);
+            initP2P(generatedRoom);
+            
+            // Ajusta o link dinamicamente mantendo a estrutura do GitHub Pages
+            const currentUrl = window.location.href.split('?')[0];
+            lobbyLinkInput.value = `${currentUrl}?room=${generatedRoom}`;
         }
-
-        lobbyLinkInput.value = window.location.href;
 
         function selectWeapon(weapKey, event) {
             currentWeapon = weapKey;
@@ -212,17 +218,40 @@
                 document.getElementById('mode-p2p').classList.add('active');
                 document.getElementById('mode-bot').classList.remove('active');
                 netLinkSection.style.display = 'block';
-                if(!networkReady) btnStart.disabled = true;
+                if(!networkReady) {
+                    btnStart.disabled = true;
+                    netLinkSection.innerHTML = `<label>COPIE E ENVIE O LINK PARA SEU AMIGO:</label><input type="text" id="lobby-link" readonly value="${lobbyLinkInput.value}" onclick="this.select(); document.execCommand('copy'); alert('Link copiado!');">`;
+                }
             }
         }
 
+        // CORREÇÃO CRÍTICA DO MULTIPLAYER DO GITHUB PAGES (HTTPS FORÇADO)
         function initP2P(hostRoomId, targetRoomId) {
+            const configPeer = {
+                host: '0.peerjs.com',
+                port: 443,
+                path: '/',
+                secure: true,
+                debug: 1
+            };
+
             if (!targetRoomId) {
-                peer = new Peer(hostRoomId);
-                peer.on('connection', (c) => { conn = c; setupConnection(); });
+                peer = new Peer(hostRoomId, configPeer);
+                peer.on('connection', (c) => { 
+                    conn = c; 
+                    setupConnection(); 
+                });
+                peer.on('error', (err) => console.error("Erro Host:", err));
             } else {
-                peer = new Peer();
-                peer.on('open', () => { conn = peer.connect(targetRoomId); setupConnection(); });
+                peer = new Peer(configPeer);
+                peer.on('open', () => { 
+                    conn = peer.connect(targetRoomId); 
+                    setupConnection(); 
+                });
+                peer.on('error', (err) => {
+                    console.error("Erro Client:", err);
+                    netLinkSection.innerHTML = "<b style='color:#ff3333;'>Sala cheia ou expirada. Recarregue a página.</b>";
+                });
             }
         }
 
@@ -230,7 +259,7 @@
             conn.on('open', () => {
                 networkReady = true;
                 btnStart.disabled = false;
-                netLinkSection.innerHTML = "<b>OPONENTE CONECTADO! PODE JOGAR.</b>";
+                netLinkSection.innerHTML = "<b style='color:#00ff88; letter-spacing:1px;'>OPONENTE CONECTADO! COMBATE PRONTO.</b>";
             });
             conn.on('data', (data) => handleNetworkData(data));
         }
@@ -346,19 +375,18 @@
                 }
             }
 
-            // INIMIGO (BOT)
-            enemyMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2.3, 32), new THREE.MeshStandardMaterial({ color: 0xff2222 }));
+            // COR DO OPONENTE (BOT OU PLAYER ADVERSÁRIO)
+            enemyMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2.3, 32), new THREE.MeshStandardMaterial({ color: botActive ? 0xff2222 : 0x2288ff }));
             enemyMesh.position.copy(botData.position); enemyMesh.castShadow = true;
             scene.add(enemyMesh);
             botBox.setFromObject(enemyMesh);
             targetMeshes.push(enemyMesh);
 
-            // HITBOX SEGUIDORA DO JOGADOR PARA O RAIO DO BOT DETECTAR DE FORMA JUSTA
             playerHitboxMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 2.0, 16), new THREE.MeshBasicMaterial({ visible: false }));
             scene.add(playerHitboxMesh);
             targetMeshes.push(playerHitboxMesh);
 
-            // MODELO DE ARMA DA TELA
+            // MODELO DE ARMA
             gunGroup = new THREE.Group();
             const gunMain = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.45), new THREE.MeshStandardMaterial({ color: 0x333b4d }));
             gunGroup.add(gunMain);
@@ -366,14 +394,9 @@
             camera.add(gunGroup);
             scene.add(camera);
 
-            // GESTÃO DE CLIQUES
             container.addEventListener('click', () => { container.requestPointerLock(); });
             document.addEventListener('pointerlockchange', () => {
-                if (document.pointerLockElement === container) {
-                    lockWarning.style.display = 'none';
-                } else {
-                    lockWarning.style.display = 'block';
-                }
+                lockWarning.style.display = document.pointerLockElement === container ? 'none' : 'block';
             });
 
             document.addEventListener('mousemove', (e) => {
@@ -384,23 +407,17 @@
                 camera.quaternion.setFromEuler(cameraEuler);
             });
 
-            // TECLADO
             document.addEventListener('keydown', (e) => {
                 if (document.pointerLockElement !== container) return;
                 if (e.code === 'KeyW') moveForward = true;
                 if (e.code === 'KeyS') moveBackward = true;
                 if (e.code === 'KeyA') moveLeft = true;
                 if (e.code === 'KeyD') moveRight = true;
-                
                 if (e.code === 'ControlLeft' || e.code === 'ControlRight') isRunning = true;
                 if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { isCrouching = true; currentHeight = 1.0; }
-                
                 if (e.code === 'Digit3') buildIceWall();
-                
-                // PULO SEGURO E DIRETO
                 if (e.code === 'Space' && canJump && !isCrouching) {
-                    velocity.y = 12.0; 
-                    canJump = false;
+                    velocity.y = 12.0; canJump = false;
                 }
                 if (e.code === 'KeyR') reload();
             });
@@ -443,29 +460,16 @@
             const wallDir = new THREE.Vector3();
             camera.getWorldDirection(wallDir);
             wallDir.y = 0; wallDir.normalize();
-            
             const spawnPos = new THREE.Vector3().copy(camera.position).addScaledVector(wallDir, 4.5);
             spawnPos.y = 3.0; 
             
-            const wallMat = new THREE.MeshStandardMaterial({ 
-                color: 0x66ccff, 
-                transparent: true, 
-                opacity: 0.75, 
-                roughness: 0.1, 
-                metalness: 0.1 
-            });
-            
+            const wallMat = new THREE.MeshStandardMaterial({ color: 0x66ccff, transparent: true, opacity: 0.75, roughness: 0.1 });
             const iceMesh = createSolidObstacle(spawnPos.x, spawnPos.y, spawnPos.z, 7, 6, 1.5, wallMat);
             iceMesh.rotation.y = cameraEuler.y;
-            
-            const index = collidables.length - 1;
-            collidables[index].setFromObject(iceMesh);
+            collidables[collidables.length - 1].setFromObject(iceMesh);
 
             showKillFeed("🛡️ Barreira de Gelo Criada!");
-
-            if (networkReady && !botActive) {
-                conn.send({ type: 'spawn_ice', x: spawnPos.x, y: spawnPos.y, z: spawnPos.z, rotY: cameraEuler.y });
-            }
+            if (networkReady && !botActive) conn.send({ type: 'spawn_ice', x: spawnPos.x, y: spawnPos.y, z: spawnPos.z, rotY: cameraEuler.y });
 
             setTimeout(() => {
                 scene.remove(iceMesh);
@@ -478,8 +482,7 @@
             const wallMat = new THREE.MeshStandardMaterial({ color: 0x66ccff, transparent: true, opacity: 0.75 });
             const iceMesh = createSolidObstacle(pos.x, pos.y, pos.z, 7, 6, 1.5, wallMat);
             iceMesh.rotation.y = rotY;
-            const index = collidables.length - 1;
-            collidables[index].setFromObject(iceMesh);
+            collidables[collidables.length - 1].setFromObject(iceMesh);
             setTimeout(() => {
                 scene.remove(iceMesh);
                 collidables = collidables.filter(c => !c.equals(new THREE.Box3().setFromObject(iceMesh)));
@@ -490,15 +493,9 @@
         function setAim(active) {
             isAiming = active;
             const config = weaponsConfig[currentWeapon];
-            if (active) {
-                camera.fov = config.zoomFov;
-                gunGroup.position.set(0, -0.15, -0.35);
-                document.getElementById('crosshair').style.transform = 'translate(-50%, -50%) scale(0.5)';
-            } else {
-                camera.fov = 75;
-                gunGroup.position.set(0.25, -0.25, -0.5);
-                document.getElementById('crosshair').style.transform = 'translate(-50%, -50%) scale(1)';
-            }
+            camera.fov = active ? config.zoomFov : 75;
+            gunGroup.position.set(active ? 0 : 0.25, active ? -0.15 : -0.25, active ? -0.35 : -0.5);
+            document.getElementById('crosshair').style.transform = `translate(-50%, -50%) scale(${active ? 0.5 : 1})`;
             camera.updateProjectionMatrix();
         }
 
@@ -548,13 +545,11 @@
             lastShotTime = now; ammo--;
             document.getElementById('ammo').innerText = `${ammo}/${config.maxAmmo}`;
             playWeaponSound('shoot');
-
             gunGroup.position.z += 0.08; setTimeout(() => gunGroup.position.z -= 0.08, 40);
 
             const origin = new THREE.Vector3().copy(camera.position).add(new THREE.Vector3(0, -0.2, -0.5).applyQuaternion(camera.quaternion));
             const ray = new THREE.Raycaster();
             ray.setFromCamera(new THREE.Vector2(0,0), camera);
-            
             ray.ray.direction.x += (Math.random() - 0.5) * config.spread;
             ray.ray.direction.y += (Math.random() - 0.5) * config.spread;
 
@@ -571,10 +566,7 @@
                 }
             }
             spawnBulletTracer(origin, hitEndPoint);
-
-            if (ammo === 0 && !isReloading) {
-                reload();
-            }
+            if (ammo === 0) reload();
         }
 
         function botTakeDamage(dmg) {
@@ -595,10 +587,8 @@
             if (hp <= 0) {
                 showKillFeed(`Você foi eliminado por ${origem}!`);
                 enemyScore++; updateScoreboardHTML();
-                setTimeout(() => {
-                    document.exitPointerLock();
-                    location.reload();
-                }, 2000);
+                if(!botActive) conn.send({type: 'death'});
+                setTimeout(() => { document.exitPointerLock(); location.reload(); }, 2000);
             }
         }
 
@@ -621,10 +611,7 @@
             const moveDir = new THREE.Vector3(camera.position.x - botData.position.x, 0, camera.position.z - botData.position.z).normalize();
             const oldBotPos = new THREE.Vector3().copy(botData.position);
             
-            if (dist > 8) {
-                botData.position.addScaledVector(moveDir, 8.0 * delta); 
-            }
-
+            if (dist > 8) botData.position.addScaledVector(moveDir, 8.0 * delta); 
             enemyMesh.position.copy(botData.position);
             botBox.setFromObject(enemyMesh);
 
@@ -637,10 +624,8 @@
                 }
             }
 
-            // --- REBALANCEAMENTO TOTAL DO BOT CONTRA AS PAREDES ---
             if (dist < 80 && time - botData.lastShot > 600) { 
                 botData.lastShot = time;
-
                 const botEyePos = new THREE.Vector3().copy(botData.position).add(new THREE.Vector3(0, 0.8, 0));
                 const playerTargetPos = new THREE.Vector3().copy(camera.position).add(new THREE.Vector3(0, -0.4, 0));
                 
@@ -649,31 +634,22 @@
                 const visionObstacles = visionRaycaster.intersectObjects(targetMeshes);
 
                 let hasLineOfSight = true;
-
                 if (visionObstacles.length > 0) {
                     const firstObstacle = visionObstacles[0];
                     if (firstObstacle.object !== playerHitboxMesh && firstObstacle.object !== enemyMesh) {
-                        if (firstObstacle.distance < dist) {
-                            hasLineOfSight = false; // Se bater em parede ou gelo, o bot não te enxerga
-                        }
+                        if (firstObstacle.distance < dist) hasLineOfSight = false;
                     }
                 }
 
                 if (hasLineOfSight) {
                     const accuracyDrop = dist * 0.04; 
                     const isHit = Math.random() > (0.35 + accuracyDrop); 
-
                     if (isHit) {
                         takeDamage(10, "Bot_IA");
                         spawnBulletTracer(botEyePos, playerTargetPos);
                     } else {
-                        const missSpread = new THREE.Vector3(
-                            (Math.random() - 0.5) * (2 + dist * 0.05),
-                            (Math.random() - 0.5) * (1.5 + dist * 0.03),
-                            (Math.random() - 0.5) * (2 + dist * 0.05)
-                        );
-                        const missedBulletEnd = new THREE.Vector3().copy(playerTargetPos).add(missSpread);
-                        spawnBulletTracer(botEyePos, missedBulletEnd);
+                        const missSpread = new THREE.Vector3((Math.random() - 0.5) * (2 + dist * 0.05), (Math.random() - 0.5) * (1.5 + dist * 0.03), (Math.random() - 0.5) * (2 + dist * 0.05));
+                        spawnBulletTracer(botEyePos, new THREE.Vector3().copy(playerTargetPos).add(missSpread));
                     }
                 }
             }
@@ -685,8 +661,7 @@
                 if (playerBox.intersectsBox(box)) {
                     camera.position.x = oldPos.x;
                     camera.position.z = oldPos.z;
-                    velocity.x = 0;
-                    velocity.z = 0;
+                    velocity.x = velocity.z = 0;
                     break;
                 }
             }
@@ -702,22 +677,17 @@
             requestAnimationFrame(animate);
             const time = performance.now();
             const delta = Math.min((time - prevTime) / 1000, 0.1);
-
             const oldPlayerPos = new THREE.Vector3().copy(camera.position);
 
             camera.position.y += (currentHeight - camera.position.y) * 12.0 * delta;
-
             velocity.x -= velocity.x * 10.0 * delta;
             velocity.z -= velocity.z * 10.0 * delta;
-            
-            // FÍSICA APLICADA DO PULO E GRAVIDADE
             velocity.y -= 9.8 * 3.5 * delta; 
             camera.position.y += velocity.y * delta;
 
             if (camera.position.y <= currentHeight) {
                 camera.position.y = currentHeight;
-                velocity.y = 0;
-                canJump = true;
+                velocity.y = 0; canJump = true;
             }
 
             direction.z = Number(moveForward) - Number(moveBackward);
@@ -727,19 +697,10 @@
             const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir); camDir.y = 0; camDir.normalize();
             const camRight = new THREE.Vector3().crossVectors(camera.up, camDir).negate().normalize();
 
-            let speedModifier = 65.0; 
-            if (isCrouching) {
-                speedModifier = 30.0; 
-            } else if (isRunning && moveForward) {
-                speedModifier = 110.0; 
-            }
+            let speedModifier = isCrouching ? 30.0 : (isRunning && moveForward ? 110.0 : 65.0); 
             if (isAiming) speedModifier *= 0.4; 
 
-            if (isRunning && moveForward && !isAiming) {
-                camera.fov += (88 - camera.fov) * 8.0 * delta;
-            } else if (!isAiming) {
-                camera.fov += (75 - camera.fov) * 8.0 * delta;
-            }
+            camera.fov += ((isAiming ? weaponsConfig[currentWeapon].zoomFov : (isRunning && moveForward ? 88 : 75)) - camera.fov) * 8.0 * delta;
             camera.updateProjectionMatrix();
 
             if (moveForward || moveBackward) velocity.addScaledVector(camDir, direction.z * speedModifier * delta);
@@ -747,12 +708,9 @@
 
             camera.position.x += velocity.x * delta;
             camera.position.z += velocity.z * delta;
-
             resolvePlayerCollisions(oldPlayerPos);
             
-            if (playerHitboxMesh) {
-                playerHitboxMesh.position.copy(camera.position);
-            }
+            if (playerHitboxMesh) playerHitboxMesh.position.copy(camera.position);
 
             updateBotLogic(delta, time);
 
