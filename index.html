@@ -153,7 +153,6 @@
     <div id="lock-warning">CLIQUE NA TELA PARA CONTROLAR O BONECO</div>
     <div id="canvas-container"></div>
 
-    <!-- BIBLIOTECAS VIA HTTPS SEGURO -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
 
@@ -180,6 +179,14 @@
 
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room');
+
+        // Lista de pontos de Spawn seguros espalhados pelo mapa para evitar spawn kill
+        const spawnPoints = [
+            { x: -60, z: 60 },
+            { x: 60, z: -60 },
+            { x: -60, z: -60 },
+            { x: 60, z: 60 }
+        ];
 
         if (roomId) {
             isHost = false; botActive = false; gameMode = 'p2p';
@@ -224,27 +231,15 @@
         }
 
         function initP2P(hostRoomId, targetRoomId) {
-            const configPeer = {
-                host: '0.peerjs.com',
-                port: 443,
-                path: '/',
-                secure: true,
-                debug: 1
-            };
+            const configPeer = { host: '0.peerjs.com', port: 443, path: '/', secure: true, debug: 1 };
 
             if (!targetRoomId) {
                 peer = new Peer(hostRoomId, configPeer);
-                peer.on('connection', (c) => { 
-                    conn = c; 
-                    setupConnection(); 
-                });
+                peer.on('connection', (c) => { conn = c; setupConnection(); });
                 peer.on('error', (err) => console.error("Erro Host:", err));
             } else {
                 peer = new Peer(configPeer);
-                peer.on('open', () => { 
-                    conn = peer.connect(targetRoomId); 
-                    setupConnection(); 
-                });
+                peer.on('open', () => { conn = peer.connect(targetRoomId); setupConnection(); });
                 peer.on('error', (err) => {
                     console.error("Erro Client:", err);
                     netLinkSection.innerHTML = "<b style='color:#ff3333;'>Sala cheia ou expirada. Recarregue a página.</b>";
@@ -333,7 +328,9 @@
             scene.fog = new THREE.FogExp2(0x141b26, 0.008);
 
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(isHost ? -20 : 20, 1.8, 20);
+            
+            // Spawn inicial baseado em Host/Client
+            camera.position.set(isHost ? -40 : 40, 1.8, 40);
             cameraEuler.setFromQuaternion(camera.quaternion);
 
             const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
@@ -416,9 +413,7 @@
                 if (e.code === 'ControlLeft' || e.code === 'ControlRight') isRunning = true;
                 if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { isCrouching = true; currentHeight = 1.0; }
                 if (e.code === 'Digit3') buildIceWall();
-                if (e.code === 'Space' && canJump && !isCrouching) {
-                    velocity.y = 12.0; canJump = false;
-                }
+                if (e.code === 'Space' && canJump && !isCrouching) { velocity.y = 12.0; canJump = false; }
                 if (e.code === 'KeyR') reload();
             });
             
@@ -436,9 +431,7 @@
                 if (e.button === 0) shoot();
                 if (e.button === 2) setAim(true);
             });
-            document.addEventListener('mouseup', (e) => {
-                if (e.button === 2) setAim(false);
-            });
+            document.addEventListener('mouseup', (e) => { if (e.button === 2) setAim(false); });
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
@@ -577,7 +570,8 @@
                 showKillFeed(`Você eliminou o Bot!`);
                 myScore++; updateScoreboardHTML();
                 botData.hp = 100;
-                botData.position.set((Math.random() > 0.5 ? 20 : -20), 1.2, (Math.random() > 0.5 ? 20 : -20));
+                const randomSpawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
+                botData.position.set(randomSpawn.x, 1.2, randomSpawn.z);
                 enemyMesh.position.copy(botData.position);
             }
         }
@@ -604,6 +598,7 @@
             }
         }
 
+        // --- CORREÇÃO: RESPAWN EM POSIÇÃO ALEATÓRIA DO MAPA ---
         function respawnPlayer() {
             hp = 100;
             isDead = false;
@@ -612,10 +607,12 @@
             ammo = weaponsConfig[currentWeapon].maxAmmo;
             document.getElementById('ammo').innerText = `${ammo}/${ammo}`;
 
-            camera.position.set(isHost ? -20 : 20, 1.8, 20);
+            // Seleciona um dos 4 cantos do mapa aleatoriamente
+            const randomSpawn = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
+            camera.position.set(randomSpawn.x, 1.8, randomSpawn.z);
             velocity.set(0,0,0);
             
-            showKillFeed("Você reviveu! Volte ao combate.");
+            showKillFeed("Você reviveu em um local seguro! Volte ao combate.");
             container.requestPointerLock();
         }
 
