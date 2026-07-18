@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WEB CS 2 - PRO EDITION</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="lobby-container">
+        <div class="lobby-panel">
+            <h1>WEB-CS 2: PRO EDITION</h1>
+            
+            <div class="input-group">
+                <label>NOME DO AGENTE / PLAYER NICK</label>
+                <input type="text" id="player-nick" class="nick-input" value="Player_1" placeholder="Digite seu nome...">
+            </div>
+
+            <div class="input-group">
+                <label>SELECIONE SUA ARMA PRINCIPAL</label>
+                <div class="weapon-select">
+                    <button class="weap-btn active" onclick="selectWeapon('ak47', event)">AK-47<br><small>Dano: 34 | Vel: Média</small></button>
+                    <button class="weap-btn" onclick="selectWeapon('m4a4', event)">M4A4<br><small>Dano: 24 | Vel: Rápida</small></button>
+                    <button class="weap-btn" onclick="selectWeapon('awp', event)">AWP (SNIPER)<br><small>Dano: 100 | Vel: Lenta</small></button>
+                </div>
+            </div>
+            
+            <div class="mode-selection">
+                <button class="mode-btn active" id="mode-bot" onclick="setGameMode('bot')">MODO BOT SOLO</button>
+                <button class="mode-btn" id="mode-p2p" onclick="setGameMode('p2p')">MULTIPLAYER P2P</button>
+            </div>
+
+            <div class="link-section" id="net-link-section" style="display:none;">
+                <input type="text" id="lobby-link" readonly onclick="this.select(); document.execCommand('copy'); alert('Link copiado!');">
+            </div>
+
+            <button id="btn-start" class="start-btn">ENTRAR NO COMBATE</button>
+        </div>
+    </div>
+
+    <div id="scoreboard">
+        <span id="display-my-name">VOCÊ</span> <span id="score-player">0</span> : <span id="score-enemy">0</span> INIMIGO
+    </div>
+
+    <div id="hud">
+        <div class="hud-item">
+            <span class="hud-label">SISTEMA HP</span>
+            <span id="hp">100</span>
+        </div>
+        <div class="hud-divider"></div>
+        <div class="hud-item">
+            <span class="hud-label">MUNIÇÃO</span>
+            <span id="ammo">30/30</span>
+        </div>
+        <div class="hud-divider"></div>
+        <div class="hud-item">
+            <span class="hud-label">ARMA ATIVA</span>
+            <span id="weapon-display">AK-47</span>
+        </div>
+    </div>
+
+    <div id="crosshair"></div>
+    <div id="kill-feed"></div>
+    <div id="lock-warning">CLIQUE NA TELA PARA CONTROLAR O BONECO</div>
+    <div id="canvas-container"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
