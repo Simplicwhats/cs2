@@ -430,19 +430,17 @@ function shoot() {
     ray.ray.direction.x += (Math.random() - 0.5) * spread;
     ray.ray.direction.y += (Math.random() - 0.5) * spread;
 
-    const intersections = ray.intersectObjects(targetMeshes);
-    let hitEndPoint = new THREE.Vector3().copy(ray.ray.origin).addScaledVector(ray.ray.direction, 200);
+    const intersections = ray.intersectObjects(targetMeshes.concat(wallMeshes)); 
 
-    if (intersections.length > 0) {
-        const hit = intersections[0];
-        hitEndPoint.copy(hit.point);
-        if (hit.object === enemyMesh) {
-            if (botActive) botTakeDamage(config.damage);
-            else conn.send({ type: 'hit', damage: config.damage });
-        }
+if (intersections.length > 0) {
+    const hit = intersections[0];
+    hitEndPoint.copy(hit.point);
+    
+    // Só causa dano se o objeto atingido for o inimigo
+    if (hit.object === enemyMesh) {
+        if (botActive) botTakeDamage(config.damage);
+        else conn.send({ type: 'hit', damage: config.damage });
     }
-    spawnBulletTracer(origin, hitEndPoint);
-    if (ammo === 0) reload();
 }
 
 function botTakeDamage(dmg) {
@@ -600,7 +598,21 @@ function animate() {
             canJump = true;
         }
     }
+const oldPos = camera.position.clone();
+camera.position.addScaledVector(velocity, delta);
 
+// Atualiza a hitbox do player
+playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(1.0, 2.0, 1.0));
+
+// Checa colisão com cada parede no array 'collidables'
+for (let box of collidables) {
+    if (playerBox.intersectsBox(box)) {
+        // Se colidir, volta para a posição antiga (impede atravessar)
+        camera.position.copy(oldPos);
+        velocity.set(0, 0, 0);
+        break;
+    }
+}
     // Suavização visual (ADS e FOV)
     const targetFov = isAiming ? weaponsConfig[currentWeapon].zoomFov : 80;
     camera.fov += (targetFov - camera.fov) * 20 * delta;
