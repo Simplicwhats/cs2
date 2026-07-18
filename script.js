@@ -104,13 +104,13 @@ let botData = {
     position: new THREE.Vector3(20, 1.2, -20), 
     hp: 100, 
     lastShot: 0, 
-    state: 'patrol', // patrol, attack
+    state: 'patrol',
     targetPos: new THREE.Vector3(),
     stuckTimer: 0
 };
 let playerBox = new THREE.Box3(), botBox = new THREE.Box3();
 
-// INÍCIO DO JOGO & POINTER LOCK FIX
+// INÍCIO DO JOGO
 btnStart.addEventListener('click', () => {
     playerNick = document.getElementById('player-nick').value || "Player";
     document.getElementById('display-my-name').innerText = playerNick.toUpperCase();
@@ -122,7 +122,6 @@ btnStart.addEventListener('click', () => {
     document.getElementById('hud').style.display = 'flex';
     document.getElementById('scoreboard').style.display = 'block';
     
-    // Crosshair clássico HTML
     document.getElementById('crosshair').innerHTML = `
         <div class="ch-line ch-top"></div><div class="ch-line ch-bottom"></div>
         <div class="ch-line ch-left"></div><div class="ch-line ch-right"></div>
@@ -134,25 +133,21 @@ btnStart.addEventListener('click', () => {
 
     initGameEngine();
     animate();
-    
-    // Mostra tela de pausa para solicitar o lock com segurança
     showPauseScreen();
 });
 
+// FIX INFALÍVEL DO POINTER LOCK NO BODY DA PÁGINA
 btnResume.addEventListener('click', () => {
-    // Força o bloqueio no corpo da página, muito mais seguro que na div
     document.body.requestPointerLock();
 });
 
 document.addEventListener('pointerlockchange', () => {
-    // Verifica se o corpo da página assumiu o controle do mouse
-    if (document.pointerLockElement === document.body) {
+    if (document.pointerLockElement) {
         pointerLocked = true;
         pauseScreen.style.display = 'none';
     } else {
         pointerLocked = false;
         showPauseScreen();
-        // Zera os movimentos para o boneco não sair andando sozinho ao pausar
         moveForward = moveBackward = moveLeft = moveRight = false; 
     }
 });
@@ -160,6 +155,7 @@ document.addEventListener('pointerlockchange', () => {
 document.addEventListener('pointerlockerror', () => {
     console.error("O navegador bloqueou a captura do mouse. Clique na tela novamente.");
 });
+
 function showPauseScreen() {
     if(!isDead) {
         pauseScreen.style.display = 'flex';
@@ -184,7 +180,7 @@ function updateScoreboardHTML() {
     document.getElementById('score-enemy').innerText = enemyScore;
 }
 
-// GERADORES DE TEXTURA PROCEDURAL (Para melhorar os gráficos)
+// GERADORES DE TEXTURA PROCEDURAL
 function createSandTexture() {
     const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
@@ -219,7 +215,6 @@ function createWallTexture() {
 
 function initGameEngine() {
     scene = new THREE.Scene();
-    // Céu claro tipo Dust2
     scene.background = new THREE.Color(0xa5cbe8);
     scene.fog = new THREE.FogExp2(0xa5cbe8, 0.003);
 
@@ -227,7 +222,6 @@ function initGameEngine() {
     camera.position.set(isHost ? -40 : 40, 1.8, 40);
     cameraEuler.setFromQuaternion(camera.quaternion);
 
-    // Iluminação Realista (CS2 style baked lighting sim)
     const ambientLight = new THREE.AmbientLight(0xffeedd, 0.5);
     scene.add(ambientLight);
     
@@ -242,31 +236,23 @@ function initGameEngine() {
     dirLight.shadow.camera.bottom = -150;
     dirLight.shadow.camera.left = -150;
     dirLight.shadow.camera.right = 150;
-    dirLight.shadow.mapSize.width = 2048; // Sombra HQ
+    dirLight.shadow.mapSize.width = 2048; 
     dirLight.shadow.mapSize.height = 2048;
     scene.add(dirLight);
 
-    // CHÃO
-    const floorMat = new THREE.MeshStandardMaterial({ 
-        map: createSandTexture(), roughness: 1.0, metalness: 0.0 
-    });
+    const floorMat = new THREE.MeshStandardMaterial({ map: createSandTexture(), roughness: 1.0, metalness: 0.0 });
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(240, 240), floorMat);
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true;
     scene.add(floor);
 
-    // PAREDES
-    const wallMat = new THREE.MeshStandardMaterial({ 
-        map: createWallTexture(), roughness: 0.9 
-    });
+    const wallMat = new THREE.MeshStandardMaterial({ map: createWallTexture(), roughness: 0.9 });
     const boxMat = new THREE.MeshStandardMaterial({ color: 0x5a695e, roughness: 0.6 });
     
-    // Limites do mapa
     createSolidObstacle(0, 5, -120, 240, 10, 2, wallMat);
     createSolidObstacle(0, 5, 120, 240, 10, 2, wallMat);
     createSolidObstacle(-120, 5, 0, 2, 10, 240, wallMat);
     createSolidObstacle(120, 5, 0, 2, 10, 240, wallMat);
 
-    // Caixas/Cobertura pelo mapa
     for (let x = -80; x <= 80; x += 40) {
         for (let z = -80; z <= 80; z += 40) {
             if (x === 0 && z === 0) {
@@ -277,7 +263,6 @@ function initGameEngine() {
         }
     }
 
-    // Inimigo (Corpo Azul PBR)
     enemyMesh = new THREE.Mesh(
         new THREE.CylinderGeometry(0.6, 0.6, 2.3, 16), 
         new THREE.MeshStandardMaterial({ color: botActive ? 0xcc3333 : 0x3366cc, roughness: 0.3, metalness: 0.2 })
@@ -291,7 +276,6 @@ function initGameEngine() {
     scene.add(playerHitboxMesh);
     targetMeshes.push(playerHitboxMesh);
 
-    // Arma (Simples mas reflete luz)
     gunGroup = new THREE.Group();
     const gunMain = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.6), new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.2, metalness: 0.8 }));
     gunMain.castShadow = true;
@@ -300,20 +284,18 @@ function initGameEngine() {
     camera.add(gunGroup);
     scene.add(camera);
 
-    // Controles (Só rodam se o mouse estiver travado)
-   document.addEventListener('mousemove', (e) => {
-    if (!pointerLocked || isDead) return;
-    
-    // REDUZ A SENSIBILIDADE PELA METADE QUANDO ESTÁ MIRANDO
-    const sensitivity = isAiming ? 0.0006 : 0.0018;
-    
-    cameraEuler.y -= e.movementX * sensitivity;
-    cameraEuler.x -= e.movementY * sensitivity;
-    
-    // Trava o pescoço para não olhar 360 graus para trás
-    cameraEuler.x = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, cameraEuler.x));
-    camera.quaternion.setFromEuler(cameraEuler);
-});
+    // CONTROLES DE MIRA CORRIGIDOS
+    document.addEventListener('mousemove', (e) => {
+        if (!pointerLocked || isDead) return;
+        
+        const sensitivity = isAiming ? 0.0006 : 0.0018;
+        
+        cameraEuler.y -= e.movementX * sensitivity;
+        cameraEuler.x -= e.movementY * sensitivity;
+        
+        cameraEuler.x = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, cameraEuler.x));
+        camera.quaternion.setFromEuler(cameraEuler);
+    });
 
     document.addEventListener('keydown', (e) => {
         if (!pointerLocked || isDead) return;
@@ -336,31 +318,33 @@ function initGameEngine() {
         if (e.code === 'ControlLeft') { isCrouching = false; currentHeight = 1.8; }
     });
 
+    // CLIQUE FORÇA O TRAVAMENTO DO MOUSE E ATIRA
     document.addEventListener('mousedown', (e) => {
-    // 1. SE O MOUSE NÃO ESTIVER TRAVADO, FORÇA A TRAVA E IGNORA O TIRO
-    if (!document.pointerLockElement) {
-        document.body.requestPointerLock();
-        return; 
-    }
-    
-    // 2. SE JÁ ESTIVER TRAVADO, ATIRA OU MIRA NORMALMENTE
-    if (isDead) return;
-    if (e.button === 0) shoot();
-    if (e.button === 2) setAim(true);
-});
+        if (!document.pointerLockElement) {
+            document.body.requestPointerLock();
+            return; 
+        }
+        
+        if (isDead) return;
+        if (e.button === 0) shoot();
+        if (e.button === 2) setAim(true);
+    });
+    document.addEventListener('mouseup', (e) => { if (e.button === 2) setAim(false); });
 
-// --- SUBSTITUA SEU EVENTO DE POINTERLOCKCHANGE POR ESTE ---
-document.addEventListener('pointerlockchange', () => {
-    // Verifica de forma genérica se ALGO está com o lock do mouse
-    if (document.pointerLockElement) {
-        pointerLocked = true;
-        pauseScreen.style.display = 'none';
-    } else {
-        pointerLocked = false;
-        showPauseScreen();
-        // Zera os movimentos para evitar que o boneco ande sozinho
-        moveForward = moveBackward = moveLeft = moveRight = false; 
-    }
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+    renderer.outputEncoding = THREE.sRGBEncoding; 
+    container.appendChild(renderer.domElement);
+    
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+}
+
 function createSolidObstacle(x, y, z, w, h, d, material) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
     mesh.position.set(x, y, z); mesh.castShadow = true; mesh.receiveShadow = true;
@@ -425,21 +409,19 @@ function shoot() {
     document.getElementById('ammo').innerText = `${ammo}/${config.maxAmmo}`;
     playWeaponSound('shoot');
     
-    // Animação de tiro e Recoil
     gunGroup.position.z += 0.12; setTimeout(() => gunGroup.position.z -= 0.12, 50);
     cameraEuler.x += config.recoil; 
-    cameraEuler.y += (Math.random() - 0.5) * config.recoil * 0.5; // Recuo lateral
+    cameraEuler.y += (Math.random() - 0.5) * config.recoil * 0.5; 
     camera.quaternion.setFromEuler(cameraEuler);
 
     const origin = new THREE.Vector3().copy(camera.position).add(new THREE.Vector3(0, -0.1, -0.3).applyQuaternion(camera.quaternion));
     const ray = new THREE.Raycaster();
     ray.setFromCamera(new THREE.Vector2(0,0), camera);
     
-    // Inaccuracy baseado no movimento
     let spread = config.spread;
     if (!isAiming) spread *= 2;
-    if (Math.abs(velocity.x) > 1 || Math.abs(velocity.z) > 1) spread *= 4; // Erra mais atirando andando
-    if (canJump === false) spread *= 6; // Pulando erra muito
+    if (Math.abs(velocity.x) > 1 || Math.abs(velocity.z) > 1) spread *= 4; 
+    if (canJump === false) spread *= 6; 
 
     ray.ray.direction.x += (Math.random() - 0.5) * spread;
     ray.ray.direction.y += (Math.random() - 0.5) * spread;
@@ -499,7 +481,7 @@ function respawnPlayer() {
     cameraEuler.set(0,0,0, 'YXZ');
     camera.quaternion.setFromEuler(cameraEuler);
     
-    showPauseScreen(); // Força o jogador a clicar para voltar
+    showPauseScreen(); 
 }
 
 function reload() {
@@ -512,7 +494,6 @@ function reload() {
     }, 1500); 
 }
 
-// IA TÁTICA MELHORADA (Strafe e Stop-to-shoot)
 function updateBotLogic(delta, time) {
     if (!botActive || hp <= 0 || isDead) return;
 
@@ -522,7 +503,6 @@ function updateBotLogic(delta, time) {
     const botEyePos = new THREE.Vector3().copy(botData.position).add(new THREE.Vector3(0, 0.8, 0));
     const playerTargetPos = new THREE.Vector3().copy(camera.position).add(new THREE.Vector3(0, -0.4, 0));
     
-    // Raycast para ver se tem visão limpa
     const visionRaycaster = new THREE.Raycaster(botEyePos, new THREE.Vector3().subVectors(playerTargetPos, botEyePos).normalize());
     const obs = visionRaycaster.intersectObjects(targetMeshes);
     let canSeePlayer = false;
@@ -540,16 +520,11 @@ function updateBotLogic(delta, time) {
     let botSpeed = 10.0;
 
     if (botData.state === 'patrol') {
-        // Corre em direção ao player se não tiver vendo
         const moveDir = new THREE.Vector3(camera.position.x - botData.position.x, 0, camera.position.z - botData.position.z).normalize();
         botData.position.addScaledVector(moveDir, botSpeed * delta);
     } else if (botData.state === 'attack') {
-        // IA atirando
         if (time - botData.lastShot > 600) {
-            // Para de andar para atirar (Aumenta precisão)
             botData.lastShot = time;
-            
-            // "Reaction Time" falso, chance de acertar baseada na distância
             if (Math.random() > (0.3 + dist * 0.015)) {
                 takeDamage(15, "Bot IA");
                 spawnBulletTracer(botEyePos, playerTargetPos);
@@ -558,14 +533,12 @@ function updateBotLogic(delta, time) {
                 spawnBulletTracer(botEyePos, new THREE.Vector3().copy(playerTargetPos).add(miss));
             }
         } else {
-            // Strafe (anda pros lados enquanto recarrega a arma / espera atirar)
             const strafeDir = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), new THREE.Vector3(camera.position.x - botData.position.x, 0, camera.position.z - botData.position.z).normalize());
-            if (Math.sin(time / 500) > 0) strafeDir.negate(); // Inverte o lado
+            if (Math.sin(time / 500) > 0) strafeDir.negate(); 
             botData.position.addScaledVector(strafeDir, botSpeed * 0.6 * delta);
         }
     }
 
-    // Colisão do bot com as caixas
     enemyMesh.position.copy(botData.position);
     botBox.setFromObject(enemyMesh);
     for (let box of collidables) {
@@ -574,7 +547,6 @@ function updateBotLogic(delta, time) {
             enemyMesh.position.copy(oldBotPos);
             botBox.setFromObject(enemyMesh);
             
-            // Se travar na parede, tenta andar aleatoriamente
             botData.position.x += (Math.random() - 0.5) * 0.5;
             botData.position.z += (Math.random() - 0.5) * 0.5;
             break;
@@ -595,8 +567,7 @@ function animate() {
     const oldPlayerPos = new THREE.Vector3().copy(camera.position);
 
     if (!isDead && pointerLocked) {
-        // Gravidade
-        velocity.x -= velocity.x * 12.0 * delta; // Atrito chão
+        velocity.x -= velocity.x * 12.0 * delta; 
         velocity.z -= velocity.z * 12.0 * delta;
         velocity.y -= 9.8 * 4.0 * delta; 
         
@@ -618,11 +589,11 @@ function animate() {
         if (isAiming) speed *= 0.5; 
 
         // Suavização do FOV
-const targetFov = isAiming ? weaponsConfig[currentWeapon].zoomFov : 80;
+        const targetFov = isAiming ? weaponsConfig[currentWeapon].zoomFov : 80;
         camera.fov += (targetFov - camera.fov) * 15.0 * delta;
         camera.updateProjectionMatrix();
 
-        // Movimento da arma ADS (SEM TREMEDEIRA NENHUMA)
+        // Movimento da arma ADS CORRIGIDO
         const targetGunX = isAiming ? 0 : 0.25;
         const targetGunY = isAiming ? -0.14 : -0.25;
         gunGroup.position.x += (targetGunX - gunGroup.position.x) * 20 * delta;
@@ -634,7 +605,7 @@ const targetFov = isAiming ? weaponsConfig[currentWeapon].zoomFov : 80;
         camera.position.x += velocity.x * delta;
         camera.position.z += velocity.z * delta;
 
-        // Animação de Caminhada (Removi o headbob da arma para não bugar a mira)
+        // Animação de Caminhada CORRIGIDA
         if (canJump && (Math.abs(velocity.x) > 1 || Math.abs(velocity.z) > 1)) {
             headBobTimer += delta * (isRunning ? 18 : 12);
             camera.position.y = currentHeight + Math.sin(headBobTimer) * 0.08;
@@ -642,7 +613,6 @@ const targetFov = isAiming ? weaponsConfig[currentWeapon].zoomFov : 80;
             camera.position.y += (currentHeight - camera.position.y) * 10 * delta;
         }
 
-        // Colisões do Player
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(1.0, 2.0, 1.0));
         for (let box of collidables) {
             if (playerBox.intersectsBox(box)) {
