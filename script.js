@@ -299,23 +299,27 @@ function initGameEngine() {
 
     document.addEventListener('keydown', (e) => {
         if (!pointerLocked || isDead) return;
-        if (e.code === 'KeyW') moveForward = true;
-        if (e.code === 'KeyS') moveBackward = true;
-        if (e.code === 'KeyA') moveLeft = true;
-        if (e.code === 'KeyD') moveRight = true;
-        if (e.code === 'ShiftLeft') isRunning = true;
-        if (e.code === 'ControlLeft') { isCrouching = true; currentHeight = 1.0; }
-        if (e.code === 'Space' && canJump && !isCrouching) { velocity.y = 11.0; canJump = false; }
-        if (e.code === 'KeyR') reload();
+        switch(e.code) {
+            case 'KeyW': moveForward = true; break;
+            case 'KeyS': moveBackward = true; break;
+            case 'KeyA': moveLeft = true; break;
+            case 'KeyD': moveRight = true; break;
+            case 'ShiftLeft': isRunning = true; break;
+            case 'ControlLeft': isCrouching = true; currentHeight = 1.0; break;
+            case 'Space': if(canJump) { velocity.y = 10; canJump = false; } break;
+            case 'KeyR': reload(); break;
+        }
     });
-    
+
     document.addEventListener('keyup', (e) => {
-        if (e.code === 'KeyW') moveForward = false;
-        if (e.code === 'KeyS') moveBackward = false;
-        if (e.code === 'KeyA') moveLeft = false;
-        if (e.code === 'KeyD') moveRight = false;
-        if (e.code === 'ShiftLeft') isRunning = false;
-        if (e.code === 'ControlLeft') { isCrouching = false; currentHeight = 1.8; }
+        switch(e.code) {
+            case 'KeyW': moveForward = false; break;
+            case 'KeyS': moveBackward = false; break;
+            case 'KeyA': moveLeft = false; break;
+            case 'KeyD': moveRight = false; break;
+            case 'ShiftLeft': isRunning = false; break;
+            case 'ControlLeft': isCrouching = false; currentHeight = 1.8; break;
+        }
     });
 
     // CLIQUE FORÇA O TRAVAMENTO DO MOUSE E ATIRA
@@ -564,70 +568,49 @@ function animate() {
     requestAnimationFrame(animate);
     const time = performance.now();
     const delta = Math.min((time - prevTime) / 1000, 0.1);
-    const oldPlayerPos = new THREE.Vector3().copy(camera.position);
-
-    if (!isDead && pointerLocked) {
-        velocity.x -= velocity.x * 12.0 * delta; 
-        velocity.z -= velocity.z * 12.0 * delta;
-        velocity.y -= 9.8 * 4.0 * delta; 
+    
+    if (pointerLocked && !isDead) {
+        // Cálculo de direção baseado na rotação da câmera
+        const camDir = new THREE.Vector3();
+        camera.getWorldDirection(camDir);
+        camDir.y = 0; camDir.normalize();
         
-        camera.position.y += velocity.y * delta;
+        const camRight = new THREE.Vector3().crossVectors(camera.up, camDir).normalize();
+        
+        // Zera a aceleração lateral/frente
+        velocity.x -= velocity.x * 10.0 * delta;
+        velocity.z -= velocity.z * 10.0 * delta;
+        velocity.y -= 9.8 * 5.0 * delta; // Gravidade
 
-        if (camera.position.y <= currentHeight) {
+        // Aplica velocidade baseada no input
+        let moveSpeed = isCrouching ? 40 : (isRunning ? 120 : 80);
+        if (isAiming) moveSpeed *= 0.4;
+
+        if (moveForward) velocity.addScaledVector(camDir, moveSpeed * delta);
+        if (moveBackward) velocity.addScaledVector(camDir, -moveSpeed * delta);
+        if (moveLeft) velocity.addScaledVector(camRight, -moveSpeed * delta);
+        if (moveRight) velocity.addScaledVector(camRight, moveSpeed * delta);
+
+        camera.position.addScaledVector(velocity, delta);
+
+        // Chão (Colisão simples)
+        if (camera.position.y < currentHeight) {
             camera.position.y = currentHeight;
-            velocity.y = 0; canJump = true;
-        }
-
-        direction.z = Number(moveForward) - Number(moveBackward);
-        direction.x = Number(moveRight) - Number(moveLeft);
-        direction.normalize();
-
-        const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir); camDir.y = 0; camDir.normalize();
-        const camRight = new THREE.Vector3().crossVectors(camera.up, camDir).negate().normalize();
-
-        let speed = isCrouching ? 35.0 : (isRunning && moveForward ? 110.0 : 75.0); 
-        if (isAiming) speed *= 0.5; 
-
-        // Suavização do FOV
-        const targetFov = isAiming ? weaponsConfig[currentWeapon].zoomFov : 80;
-        camera.fov += (targetFov - camera.fov) * 15.0 * delta;
-        camera.updateProjectionMatrix();
-
-        // Movimento da arma ADS CORRIGIDO
-        const targetGunX = isAiming ? 0 : 0.25;
-        const targetGunY = isAiming ? -0.14 : -0.25;
-        gunGroup.position.x += (targetGunX - gunGroup.position.x) * 20 * delta;
-        gunGroup.position.y += (targetGunY - gunGroup.position.y) * 20 * delta;
-
-        if (moveForward || moveBackward) velocity.addScaledVector(camDir, direction.z * speed * delta);
-        if (moveLeft || moveRight) velocity.addScaledVector(camRight, direction.x * speed * delta);
-
-        camera.position.x += velocity.x * delta;
-        camera.position.z += velocity.z * delta;
-
-        // Animação de Caminhada CORRIGIDA
-        if (canJump && (Math.abs(velocity.x) > 1 || Math.abs(velocity.z) > 1)) {
-            headBobTimer += delta * (isRunning ? 18 : 12);
-            camera.position.y = currentHeight + Math.sin(headBobTimer) * 0.08;
-        } else {
-            camera.position.y += (currentHeight - camera.position.y) * 10 * delta;
-        }
-
-        playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(1.0, 2.0, 1.0));
-        for (let box of collidables) {
-            if (playerBox.intersectsBox(box)) {
-                camera.position.x = oldPlayerPos.x;
-                camera.position.z = oldPlayerPos.z;
-                velocity.x = velocity.z = 0;
-                break;
-            }
+            velocity.y = 0;
+            canJump = true;
         }
     }
-    
-    if (playerHitboxMesh) playerHitboxMesh.position.copy(camera.position);
 
+    // Suavização visual (ADS e FOV)
+    const targetFov = isAiming ? weaponsConfig[currentWeapon].zoomFov : 80;
+    camera.fov += (targetFov - camera.fov) * 20 * delta;
+    camera.updateProjectionMatrix();
+
+    gunGroup.position.x += ((isAiming ? 0 : 0.25) - gunGroup.position.x) * 20 * delta;
+    gunGroup.position.y += ((isAiming ? -0.14 : -0.25) - gunGroup.position.y) * 20 * delta;
+
+    // Atualizações de rede e IA
     updateBotLogic(delta, time);
-
     if (networkReady && !botActive && time - lastSentTime > 35) {
         conn.send({ type: 'pos_update', x: camera.position.x, y: camera.position.y, z: camera.position.z, ry: cameraEuler.y });
         lastSentTime = time;
