@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WEB CS 2 - PRO EDITION</title>
+    <!-- FIX PARA O ERRO 404 DO FAVICON -->
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -38,6 +40,13 @@
         </div>
     </div>
 
+    <!-- TELA DE PAUSA SEGURA PARA O MOUSE -->
+    <div id="pause-screen">
+        <h2>JOGO PAUSADO</h2>
+        <p>Clique aqui para voltar ao combate</p>
+        <button id="btn-resume">VOLTAR</button>
+    </div>
+
     <div id="scoreboard">
         <span id="display-my-name">VOCÊ</span> <span id="score-player">0</span> : <span id="score-enemy">0</span> INIMIGO
     </div>
@@ -61,7 +70,6 @@
 
     <div id="crosshair"></div>
     <div id="kill-feed"></div>
-    <div id="lock-warning">CLIQUE NA TELA PARA CONTROLAR O BONECO</div>
     <div id="canvas-container"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
