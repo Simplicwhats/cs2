@@ -140,23 +140,26 @@ btnStart.addEventListener('click', () => {
 });
 
 btnResume.addEventListener('click', () => {
-    container.requestPointerLock();
+    // Força o bloqueio no corpo da página, muito mais seguro que na div
+    document.body.requestPointerLock();
 });
 
 document.addEventListener('pointerlockchange', () => {
-    if (document.pointerLockElement === container) {
+    // Verifica se o corpo da página assumiu o controle do mouse
+    if (document.pointerLockElement === document.body) {
         pointerLocked = true;
         pauseScreen.style.display = 'none';
     } else {
         pointerLocked = false;
         showPauseScreen();
+        // Zera os movimentos para o boneco não sair andando sozinho ao pausar
+        moveForward = moveBackward = moveLeft = moveRight = false; 
     }
 });
 
 document.addEventListener('pointerlockerror', () => {
-    console.warn("Erro de Pointer Lock capturado. Aguarde 1 segundo e tente novamente.");
+    console.error("O navegador bloqueou a captura do mouse. Clique na tela novamente.");
 });
-
 function showPauseScreen() {
     if(!isDead) {
         pauseScreen.style.display = 'flex';
@@ -298,13 +301,19 @@ function initGameEngine() {
     scene.add(camera);
 
     // Controles (Só rodam se o mouse estiver travado)
-    document.addEventListener('mousemove', (e) => {
-        if (!pointerLocked || isDead) return;
-        cameraEuler.y -= e.movementX * 0.0018;
-        cameraEuler.x -= e.movementY * 0.0018;
-        cameraEuler.x = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, cameraEuler.x));
-        camera.quaternion.setFromEuler(cameraEuler);
-    });
+   document.addEventListener('mousemove', (e) => {
+    if (!pointerLocked || isDead) return;
+    
+    // REDUZ A SENSIBILIDADE PELA METADE QUANDO ESTÁ MIRANDO
+    const sensitivity = isAiming ? 0.0006 : 0.0018;
+    
+    cameraEuler.y -= e.movementX * sensitivity;
+    cameraEuler.x -= e.movementY * sensitivity;
+    
+    // Trava o pescoço para não olhar 360 graus para trás
+    cameraEuler.x = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, cameraEuler.x));
+    camera.quaternion.setFromEuler(cameraEuler);
+});
 
     document.addEventListener('keydown', (e) => {
         if (!pointerLocked || isDead) return;
