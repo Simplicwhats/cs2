@@ -337,26 +337,30 @@ function initGameEngine() {
     });
 
     document.addEventListener('mousedown', (e) => {
-        if (!pointerLocked || isDead) return;
-        if (e.button === 0) shoot();
-        if (e.button === 2) setAim(true);
-    });
-    document.addEventListener('mouseup', (e) => { if (e.button === 2) setAim(false); });
-
-    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
-    renderer.outputEncoding = THREE.sRGBEncoding; 
-    container.appendChild(renderer.domElement);
+    // 1. SE O MOUSE NÃO ESTIVER TRAVADO, FORÇA A TRAVA E IGNORA O TIRO
+    if (!document.pointerLockElement) {
+        document.body.requestPointerLock();
+        return; 
+    }
     
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    });
-}
+    // 2. SE JÁ ESTIVER TRAVADO, ATIRA OU MIRA NORMALMENTE
+    if (isDead) return;
+    if (e.button === 0) shoot();
+    if (e.button === 2) setAim(true);
+});
 
+// --- SUBSTITUA SEU EVENTO DE POINTERLOCKCHANGE POR ESTE ---
+document.addEventListener('pointerlockchange', () => {
+    // Verifica de forma genérica se ALGO está com o lock do mouse
+    if (document.pointerLockElement) {
+        pointerLocked = true;
+        pauseScreen.style.display = 'none';
+    } else {
+        pointerLocked = false;
+        showPauseScreen();
+        // Zera os movimentos para evitar que o boneco ande sozinho
+        moveForward = moveBackward = moveLeft = moveRight = false; 
+    }
 function createSolidObstacle(x, y, z, w, h, d, material) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
     mesh.position.set(x, y, z); mesh.castShadow = true; mesh.receiveShadow = true;
@@ -614,13 +618,15 @@ function animate() {
         if (isAiming) speed *= 0.5; 
 
         // Suavização do FOV
-        const targetFov = isAiming ? weaponsConfig[currentWeapon].zoomFov : 80;
+const targetFov = isAiming ? weaponsConfig[currentWeapon].zoomFov : 80;
         camera.fov += (targetFov - camera.fov) * 15.0 * delta;
         camera.updateProjectionMatrix();
 
-        // Movimento da arma ADS
-        gunGroup.position.x += ((isAiming ? 0 : 0.25) - gunGroup.position.x) * 20 * delta;
-        gunGroup.position.y += ((isAiming ? -0.12 : -0.25) - gunGroup.position.y) * 20 * delta;
+        // Movimento da arma ADS (SEM TREMEDEIRA NENHUMA)
+        const targetGunX = isAiming ? 0 : 0.25;
+        const targetGunY = isAiming ? -0.14 : -0.25;
+        gunGroup.position.x += (targetGunX - gunGroup.position.x) * 20 * delta;
+        gunGroup.position.y += (targetGunY - gunGroup.position.y) * 20 * delta;
 
         if (moveForward || moveBackward) velocity.addScaledVector(camDir, direction.z * speed * delta);
         if (moveLeft || moveRight) velocity.addScaledVector(camRight, direction.x * speed * delta);
@@ -628,11 +634,10 @@ function animate() {
         camera.position.x += velocity.x * delta;
         camera.position.z += velocity.z * delta;
 
-        // Animação de Caminhada
+        // Animação de Caminhada (Removi o headbob da arma para não bugar a mira)
         if (canJump && (Math.abs(velocity.x) > 1 || Math.abs(velocity.z) > 1)) {
             headBobTimer += delta * (isRunning ? 18 : 12);
             camera.position.y = currentHeight + Math.sin(headBobTimer) * 0.08;
-            gunGroup.position.y += Math.sin(headBobTimer * 2) * 0.002;
         } else {
             camera.position.y += (currentHeight - camera.position.y) * 10 * delta;
         }
