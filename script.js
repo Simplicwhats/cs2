@@ -7,23 +7,17 @@ let networkPlayers = {};
 let playerNick = "Striker", selectedMap = "dust2";
 let playerMoney = 5000;
 
-// Configuração de Áudio Procedural para o Tiro
+// Configuração de Áudio Procedural (Tiro e Recarga)
 let audioCtx = null;
 function playShootSound() {
     try {
-        if (!audioCtx) {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
 
         const bufferSize = audioCtx.sampleRate * 0.3;
         const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
         const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
 
         const noise = audioCtx.createBufferSource();
         noise.buffer = buffer;
@@ -43,9 +37,29 @@ function playShootSound() {
 
         noise.start();
         noise.stop(audioCtx.currentTime + 0.3);
-    } catch (e) {
-        // Ignora caso o navegador bloqueie antes da primeira interação
-    }
+    } catch (e) {}
+}
+
+function playReloadSound() {
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(350, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(90, audioCtx.currentTime + 0.2);
+        
+        gain.gain.setValueAtTime(0.6, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.2);
+    } catch (e) {}
 }
 
 const weaponsConfig = {
@@ -165,6 +179,10 @@ function handleData(senderId, data) {
         if (!networkPlayers[peerId]) createNetworkPlayer(peerId);
         networkPlayers[peerId].position.set(data.x, data.y, data.z);
         networkPlayers[peerId].rotation.y = data.ry;
+    }
+    if (data.type === 'shoot') {
+        playShootSound();
+        createBulletTracer(new THREE.Vector3(data.sx, data.sy, data.sz), new THREE.Vector3(data.ex, data.ey, data.ez));
     }
     if (data.type === 'hit' && data.target === (isHost ? 'host' : peer.id)) {
         takeDamage(data.dmg, new THREE.Vector3(data.srcX, data.srcY, data.srcZ));
@@ -297,6 +315,15 @@ function initGameEngine() {
     scene.add(dirLight);
 
     buildMapGeometries();
+
+    // Cria a mira da AWP dinamicamente se não existir
+    if (!document.getElementById('sniper-scope')) {
+        const scopeDiv = document.createElement('div');
+        scopeDiv.id = 'sniper-scope';
+        scopeDiv.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;z-index:10;background:radial-gradient(circle, transparent 25%, rgba(0,0,0,0.85) 60%, black 90%);box-shadow: inset 0 0 100px rgba(0,0,0,0.9);';
+        scopeDiv.innerHTML = '<div style="position:absolute;top:50%;left:0;width:100%;height:2px;background:rgba(0,0,0,0.7);"></div><div style="position:absolute;top:0;left:50%;width:2px;height:100%;background:rgba(0,0,0,0.7);"></div>';
+        document.body.appendChild(scopeDiv);
+    }
 
     if (gameMode === 'bot') {
         createNetworkPlayer('bot_id');
@@ -501,7 +528,21 @@ function build3DWeapon() {
 function setAim(active) {
     if(isDead || buyMenuOpen) return;
     isAiming = active;
-    document.getElementById('crosshair').style.opacity = (active && currentWeapon === 'awp') ? '0' : '1';
+    const isAwp = (currentWeapon === 'awp');
+    document.getElementById('crosshair').style.opacity = (active && isAwp) ? '0' : '1';
+    
+    const scopeDiv = document.getElementById('sniper-scope');
+    if (scopeDiv) {
+        scopeDiv.style.display = (active && isAwp) ? 'block' : 'none';
+    }
+}
+
+function createBulletTracer(startPos, endPos) {
+    const geometry = new THREE.BufferGeometry().setFromPoints([startPos, endPos]);
+    const material = new THREE.LineBasicMaterial({ color: 0xffea55, linewidth: 2, transparent: true, opacity: 0.8 });
+    const line = new THREE.Line(geometry, material);
+    scene.add(line);
+    setTimeout(() => scene.remove(line), 60);
 }
 
 function shoot() {
@@ -511,7 +552,6 @@ function shoot() {
 
     lastShotTime = now; ammo--; updateHUD();
     
-    // Dispara o som de tiro proceduralmente
     playShootSound();
 
     gunGroup.position.z += 0.05; setTimeout(() => gunGroup.position.z -= 0.05, 50);
@@ -528,10 +568,13 @@ function shoot() {
     ray.ray.direction.x += (Math.random() - 0.5) * spr;
     ray.ray.direction.y += (Math.random() - 0.5) * spr;
 
+    let endPoint = ray.ray.at(100, new THREE.Vector3());
     const hits = ray.intersectObjects(wallMeshes);
+    let hitPlayer = false;
+
     if (hits.length > 0) {
         const hit = hits[0];
-        let hitPlayer = false;
+        endPoint.copy(hit.point);
         
         if (gameMode === 'bot' && botMesh && (hit.object.parent === botMesh || hit.object === botMesh)) {
             botData.hp -= cfg.damage; hitPlayer = true;
@@ -557,6 +600,16 @@ function shoot() {
             spark.position.copy(hit.point); scene.add(spark);
             setTimeout(() => scene.remove(spark), 100);
         }
+    }
+
+    // Cria o rastro localmente e envia via rede para o amigo ver e ouvir
+    createBulletTracer(camera.position, endPoint);
+    if (gameMode !== 'bot') {
+        broadcastData({
+            type: 'shoot',
+            sx: camera.position.x, sy: camera.position.y, sz: camera.position.z,
+            ex: endPoint.x, ey: endPoint.y, ez: endPoint.z
+        });
     }
 }
 
@@ -592,6 +645,9 @@ function takeDamage(dmg, sourcePos) {
         msg.innerText = "VOCÊ FOI ELIMINADO";
         msg.style.display = 'block';
 
+        const scopeDiv = document.getElementById('sniper-scope');
+        if(scopeDiv) scopeDiv.style.display = 'none';
+
         document.exitPointerLock();
         setTimeout(restartRound, 4000);
     }
@@ -620,6 +676,7 @@ function restartRound() {
 
 function reload() {
     if (ammo === weaponsConfig[currentWeapon].maxAmmo || reserveAmmo <= 0) return;
+    playReloadSound();
     document.getElementById('ammo').innerText = "--";
     setTimeout(() => {
         const cfg = weaponsConfig[currentWeapon];
