@@ -91,9 +91,8 @@ const pauseScreen = document.getElementById('pause-screen');
 const buyMenu = document.getElementById('buy-menu');
 
 const safeSpawns = [
-    {x: -140, z: 140}, {x: 140, z: -140}, {x: -140, z: -140}, {x: 140, z: 140},
-    {x: 0, z: 160}, {x: 0, z: -160}, {x: 160, z: 0}, {x: -160, z: 0},
-    {x: -80, z: 80}, {x: 80, z: -80}
+    {x: -150, z: 150}, {x: 150, z: -150}, {x: -150, z: -150}, {x: 150, z: 150},
+    {x: 0, z: 150}, {x: 0, z: -150}, {x: 150, z: 0}, {x: -150, z: 0}
 ];
 
 const urlParams = new URLSearchParams(window.location.search);
