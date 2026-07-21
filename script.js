@@ -194,7 +194,6 @@ function handleData(senderId, data) {
     }
 }
 
-// Boneco Tático Estilo CS (Operador com uniforme, colete, capacete e fuzil)
 function createNetworkPlayer(id) {
     if (networkPlayers[id]) return;
     const group = new THREE.Group();
@@ -205,47 +204,31 @@ function createNetworkPlayer(id) {
     const matHelmet = new THREE.MeshStandardMaterial({ color: 0x34495e, metalness: 0.3, roughness: 0.4 });
     const matGun = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.3 });
 
-    // Pernas
     const legGeo = new THREE.BoxGeometry(0.22, 0.9, 0.25);
-    const legLeft = new THREE.Mesh(legGeo, matUniform);
-    legLeft.position.set(-0.13, 0.45, 0);
-    const legRight = new THREE.Mesh(legGeo, matUniform);
-    legRight.position.set(0.13, 0.45, 0);
+    const legLeft = new THREE.Mesh(legGeo, matUniform); legLeft.position.set(-0.13, 0.45, 0);
+    const legRight = new THREE.Mesh(legGeo, matUniform); legRight.position.set(0.13, 0.45, 0);
 
-    // Torso e Colete Tático
     const torsoGeo = new THREE.BoxGeometry(0.5, 0.75, 0.3);
-    const torso = new THREE.Mesh(torsoGeo, matUniform);
-    torso.position.set(0, 1.25, 0);
+    const torso = new THREE.Mesh(torsoGeo, matUniform); torso.position.set(0, 1.25, 0);
 
     const vestGeo = new THREE.BoxGeometry(0.52, 0.5, 0.32);
-    const vest = new THREE.Mesh(vestGeo, matVest);
-    vest.position.set(0, 1.3, 0);
+    const vest = new THREE.Mesh(vestGeo, matVest); vest.position.set(0, 1.3, 0);
 
-    // Cabeça e Capacete
     const headGeo = new THREE.BoxGeometry(0.28, 0.32, 0.28);
-    const head = new THREE.Mesh(headGeo, matSkin);
-    head.position.set(0, 1.82, 0);
+    const head = new THREE.Mesh(headGeo, matSkin); head.position.set(0, 1.82, 0);
 
     const helmetGeo = new THREE.BoxGeometry(0.32, 0.18, 0.32);
-    const helmet = new THREE.Mesh(helmetGeo, matHelmet);
-    helmet.position.set(0, 1.93, 0);
+    const helmet = new THREE.Mesh(helmetGeo, matHelmet); helmet.position.set(0, 1.93, 0);
 
-    // Braços
     const armGeo = new THREE.BoxGeometry(0.18, 0.7, 0.18);
-    const armLeft = new THREE.Mesh(armGeo, matUniform);
-    armLeft.position.set(-0.36, 1.25, 0);
-    const armRight = new THREE.Mesh(armGeo, matUniform);
-    armRight.position.set(0.36, 1.25, 0);
+    const armLeft = new THREE.Mesh(armGeo, matUniform); armLeft.position.set(-0.36, 1.25, 0);
+    const armRight = new THREE.Mesh(armGeo, matUniform); armRight.position.set(0.36, 1.25, 0);
 
-    // Fuzil visível no modelo
     const rifleGeo = new THREE.BoxGeometry(0.1, 0.12, 0.7);
-    const rifle = new THREE.Mesh(rifleGeo, matGun);
-    rifle.position.set(0.2, 1.05, -0.25);
-    rifle.rotation.x = 0.2;
+    const rifle = new THREE.Mesh(rifleGeo, matGun); rifle.position.set(0.2, 1.05, -0.25); rifle.rotation.x = 0.2;
 
     group.add(legLeft, legRight, torso, vest, head, helmet, armLeft, armRight, rifle);
     
-    // Hitbox invisível para garantir precisão exata ao atirar
     const hitboxBody = new THREE.Mesh(
         new THREE.CylinderGeometry(0.4, 0.4, 1.9, 12),
         new THREE.MeshBasicMaterial({ visible: false })
@@ -264,7 +247,7 @@ let isRunning = false, isCrouching = false;
 let velocity = new THREE.Vector3(), currentHeight = 1.8;
 let hp = 100, ammo = 7, reserveAmmo = 35, myScore = 0, enemyScore = 0, isDead = false;
 let gunGroup, muzzleFlashMesh, muzzleLight, botMesh = null;
-let collidables = [], wallMeshes = [];
+let collidables = [], wallMeshes = [], mapWallMeshes = [];
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 let recoilOffset = 0;
 let botData = { pos: new THREE.Vector3(20, 1.2, -20), hp: 100, lastShot: 0, strafeDir: 1 };
@@ -532,6 +515,7 @@ function createBlock(x, y, z, w, h, d, mat) {
     scene.add(mesh);
     collidables.push(new THREE.Box3().setFromObject(mesh)); 
     wallMeshes.push(mesh); 
+    mapWallMeshes.push(mesh);
 }
 
 function build3DWeapon() {
@@ -749,13 +733,17 @@ function updateBotLogic(delta, time) {
     let hasLOS = false;
     const dirToPlayer = new THREE.Vector3().subVectors(camera.position, botMesh.position).normalize();
     const ray = new THREE.Raycaster(new THREE.Vector3().copy(botMesh.position).add(new THREE.Vector3(0,0.8,0)), dirToPlayer);
-    const hits = ray.intersectObjects(wallMeshes);
+    const hits = ray.intersectObjects(mapWallMeshes);
     if (hits.length === 0 || hits[0].distance >= dist - 1.5) hasLOS = true;
 
     botMesh.lookAt(camera.position.x, botMesh.position.y, camera.position.z);
 
     if (hasLOS && dist < 45) {
-        if (time - botData.lastShot > 600) { botData.lastShot = time; if (Math.random() > 0.4) takeDamage(14, botMesh.position); }
+        if (time - botData.lastShot > 600) { 
+            botData.lastShot = time; 
+            playShootSound(); 
+            if (Math.random() > 0.4) takeDamage(14, botMesh.position); 
+        }
         
         const strafeVetor = new THREE.Vector3().crossVectors(dirToPlayer, new THREE.Vector3(0,1,0)).normalize();
         const oldPos = botMesh.position.clone();
