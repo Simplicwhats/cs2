@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WEB CS 2 - ENGINE UPDATE</title>
+    <title>WEB CS 2 - GLOBAL UPDATE</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- LOBBY -->
     <div id="lobby-container">
         <div class="lobby-panel">
             <div class="cs-logo">CS2 WEB<span>.js</span></div>
@@ -23,18 +22,21 @@
             <div class="input-group">
                 <label>MAPA TÁTICO</label>
                 <select id="map-select" class="custom-select">
-                    <option value="dust2">Dust II (Deserto & Caixotes)</option>
-                    <option value="mirage">Mirage (Urbano & Madeira)</option>
-                    <option value="inferno">Inferno (Tijolos & Alamedas)</option>
+                    <option value="dust2">Dust II (Deserto)</option>
+                    <option value="mirage">Mirage (Urbano Ocre)</option>
+                    <option value="inferno">Inferno (Tijolos & Vielas)</option>
+                    <option value="nuke">Nuke (Complexo Industrial)</option>
                 </select>
             </div>
             
             <div class="mode-selection">
-                <button class="mode-btn active" id="mode-bot" onclick="setGameMode('bot')">MODO TREINO (BOT)</button>
-                <button class="mode-btn" id="mode-p2p" onclick="setGameMode('p2p')">1V1 ONLINE (P2P)</button>
+                <button class="mode-btn active" id="mode-bot" onclick="setGameMode('bot')">TREINO (BOT)</button>
+                <button class="mode-btn" id="mode-1v1" onclick="setGameMode('1v1')">X1 (2 JOGADORES)</button>
+                <button class="mode-btn" id="mode-1v1v1" onclick="setGameMode('1v1v1')">FREE FOR ALL (3 JOGADORES)</button>
             </div>
 
             <div class="link-section" id="net-link-section" style="display:none;">
+                <label id="net-status-label" style="color:#5bc0de; display:block; margin-bottom:5px;">Aguardando conexões (0/2)</label>
                 <input type="text" id="lobby-link" readonly onclick="this.select(); document.execCommand('copy'); alert('Link de convite copiado!');">
             </div>
 
@@ -45,14 +47,14 @@
     <!-- PAUSA -->
     <div id="pause-screen">
         <h2>PARTIDA PAUSADA</h2>
-        <p>Aperte <b>ESC</b> para abrir as configurações ou clique abaixo para voltar.</p>
+        <p>Aperte <b>ESC</b> para abrir o menu ou clique abaixo para voltar.</p>
         <button id="btn-resume">VOLTAR AO JOGO</button>
     </div>
 
     <!-- MENU DE COMPRA (B) -->
     <div id="buy-menu" class="hidden">
         <div class="buy-header">
-            <h2>EQUIPAMENTOS</h2>
+            <h2>MERCADO NEGRO</h2>
             <div class="buy-money">SALDO: <span id="buy-money-display" class="money-text">$16000</span></div>
         </div>
         <div class="buy-grid">
@@ -80,7 +82,7 @@
     <div id="scoreboard">
         <div class="team-ct"><span id="display-my-name">VOCÊ</span> <span id="score-player">0</span></div>
         <div class="vs-badge">VS</div>
-        <div class="team-tr"><span id="score-enemy">0</span> <span id="display-enemy-name">INIMIGO</span></div>
+        <div class="team-tr"><span id="score-enemy">0</span> <span id="display-enemy-name">INIMIGOS</span></div>
     </div>
 
     <div id="hud-bottom-left" class="hud-panel">
@@ -111,4 +113,3 @@
     <script src="script.js"></script>
 </body>
 </html>
-
