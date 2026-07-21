@@ -194,16 +194,67 @@ function handleData(senderId, data) {
     }
 }
 
+// Boneco Tático Estilo CS (Operador com uniforme, colete, capacete e fuzil)
 function createNetworkPlayer(id) {
     if (networkPlayers[id]) return;
     const group = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.8, 16), new THREE.MeshStandardMaterial({ color: 0xb33939, roughness: 0.6 }));
-    body.position.y = 0.9; body.castShadow = true;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 16, 16), new THREE.MeshStandardMaterial({ color: 0xeccbcb }));
-    head.position.y = 1.9; head.castShadow = true;
-    group.add(body, head);
+    
+    const matUniform = new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.7 });
+    const matVest = new THREE.MeshStandardMaterial({ color: 0x1a252f, roughness: 0.5 });
+    const matSkin = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.8 });
+    const matHelmet = new THREE.MeshStandardMaterial({ color: 0x34495e, metalness: 0.3, roughness: 0.4 });
+    const matGun = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.3 });
+
+    // Pernas
+    const legGeo = new THREE.BoxGeometry(0.22, 0.9, 0.25);
+    const legLeft = new THREE.Mesh(legGeo, matUniform);
+    legLeft.position.set(-0.13, 0.45, 0);
+    const legRight = new THREE.Mesh(legGeo, matUniform);
+    legRight.position.set(0.13, 0.45, 0);
+
+    // Torso e Colete Tático
+    const torsoGeo = new THREE.BoxGeometry(0.5, 0.75, 0.3);
+    const torso = new THREE.Mesh(torsoGeo, matUniform);
+    torso.position.set(0, 1.25, 0);
+
+    const vestGeo = new THREE.BoxGeometry(0.52, 0.5, 0.32);
+    const vest = new THREE.Mesh(vestGeo, matVest);
+    vest.position.set(0, 1.3, 0);
+
+    // Cabeça e Capacete
+    const headGeo = new THREE.BoxGeometry(0.28, 0.32, 0.28);
+    const head = new THREE.Mesh(headGeo, matSkin);
+    head.position.set(0, 1.82, 0);
+
+    const helmetGeo = new THREE.BoxGeometry(0.32, 0.18, 0.32);
+    const helmet = new THREE.Mesh(helmetGeo, matHelmet);
+    helmet.position.set(0, 1.93, 0);
+
+    // Braços
+    const armGeo = new THREE.BoxGeometry(0.18, 0.7, 0.18);
+    const armLeft = new THREE.Mesh(armGeo, matUniform);
+    armLeft.position.set(-0.36, 1.25, 0);
+    const armRight = new THREE.Mesh(armGeo, matUniform);
+    armRight.position.set(0.36, 1.25, 0);
+
+    // Fuzil visível no modelo
+    const rifleGeo = new THREE.BoxGeometry(0.1, 0.12, 0.7);
+    const rifle = new THREE.Mesh(rifleGeo, matGun);
+    rifle.position.set(0.2, 1.05, -0.25);
+    rifle.rotation.x = 0.2;
+
+    group.add(legLeft, legRight, torso, vest, head, helmet, armLeft, armRight, rifle);
+    
+    // Hitbox invisível para garantir precisão exata ao atirar
+    const hitboxBody = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.4, 0.4, 1.9, 12),
+        new THREE.MeshBasicMaterial({ visible: false })
+    );
+    hitboxBody.position.y = 0.95;
+    group.add(hitboxBody);
+
     scene.add(group);
-    wallMeshes.push(body, head);
+    wallMeshes.push(hitboxBody);
     networkPlayers[id] = group;
 }
 
@@ -316,7 +367,6 @@ function initGameEngine() {
 
     buildMapGeometries();
 
-    // Cria a mira da AWP dinamicamente se não existir
     if (!document.getElementById('sniper-scope')) {
         const scopeDiv = document.createElement('div');
         scopeDiv.id = 'sniper-scope';
@@ -602,7 +652,6 @@ function shoot() {
         }
     }
 
-    // Cria o rastro localmente e envia via rede para o amigo ver e ouvir
     createBulletTracer(camera.position, endPoint);
     if (gameMode !== 'bot') {
         broadcastData({
