@@ -6,8 +6,9 @@ let myConn = null;
 let networkPlayers = {}; 
 let playerNick = "Striker", selectedMap = "dust2";
 let playerMoney = 5000;
+let activeGrenades = [];
 
-// Configuração de Áudio Procedural (Tiro, Recarga e Granada)
+// Configuração de Áudio Procedural
 let audioCtx = null;
 function playShootSound() {
     try {
@@ -37,6 +38,37 @@ function playShootSound() {
 
         noise.start();
         noise.stop(audioCtx.currentTime + 0.3);
+    } catch (e) {}
+}
+
+function playExplosionSound() {
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+
+        const bufferSize = audioCtx.sampleRate * 1.5;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(400, audioCtx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(30, audioCtx.currentTime + 1.2);
+
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(3.0, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.4);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        noise.start();
+        noise.stop(audioCtx.currentTime + 1.4);
     } catch (e) {}
 }
 
@@ -352,7 +384,7 @@ function updateHUD() {
     document.getElementById('money-display').innerText = `$${playerMoney}`;
     document.getElementById('ammo').innerText = curWeaponData.maxAmmo ? inventory[activeSlot].ammo : '-';
     document.getElementById('reserve-ammo').innerText = curWeaponData.maxAmmo ? `/ ${inventory[activeSlot].reserveAmmo}` : '';
-    document.getElementById('weapon-display').innerText = curWeaponData.name + (hasArmor ? " [Colete]" : "") + (hasHelmet ? " [Capacete]" : "");
+    document.getElementById('weapon-display').innerText = curWeaponData.name + (hasArmor ? " [Colete]" : "") + (hasHelmet ? " [Capacete]" : "") + (grenadesCount > 0 ? ` [Granada: ${grenadesCount}]` : "");
 }
 
 function updateScoreboard() {
@@ -449,6 +481,7 @@ function initGameEngine() {
     document.addEventListener('keydown', (e) => {
         if (isDead) return;
         if (e.code === 'KeyB') toggleBuyMenu(!buyMenuOpen);
+        if (e.code === 'KeyG') throwGrenade();
         if (!pointerLocked || buyMenuOpen) return;
         switch(e.code) {
             case 'KeyW': moveF = true; break;
@@ -506,90 +539,108 @@ function getSafeSpawn(avoidPos) {
     return new THREE.Vector3(bestPoint.x, 1.8, bestPoint.z);
 }
 
-function createTexture(baseColor, detailColor, pattern) {
+function createTexturedBrick(baseColor, detailColor) {
     const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = baseColor; ctx.fillRect(0, 0, 512, 512);
+    
+    // Tijolos / Detalhes de parede
     ctx.fillStyle = detailColor;
-    for(let i=0; i<4000; i++) {
-        ctx.globalAlpha = Math.random() * 0.4;
-        ctx.fillRect(Math.random()*512, Math.random()*512, Math.random()*4+1, Math.random()*4+1);
+    ctx.lineWidth = 2;
+    for(let y=0; y<512; y+=32) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke();
     }
-    if(pattern === 'grid' || pattern === 'tiles' || pattern === 'asphalt') {
-        ctx.globalAlpha = 0.5; ctx.strokeStyle = detailColor; ctx.lineWidth = 4;
-        const size = pattern === 'tiles' ? 128 : 64;
-        for(let i=0; i<512; i+=size) { ctx.strokeRect(0, i, 512, size); ctx.strokeRect(i, 0, size, 512); }
+    for(let x=0; x<512; x+=64) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 512); ctx.stroke();
     }
+
+    // Desenho de Janelas embutidas na textura para realismo
+    ctx.fillStyle = "#111115";
+    for(let x=40; x<512; x+=128) {
+        for(let y=40; y<512; y+=128) {
+            ctx.fillRect(x, y, 48, 72);
+            ctx.strokeStyle = "#444";
+            ctx.lineWidth = 4;
+            ctx.strokeRect(x, y, 48, 72);
+        }
+    }
+
     const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(16, 16);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(4, 4);
     return tex;
 }
 
 function buildMapGeometries() {
-    let fMat, wMat, bMat, trimMat;
+    let fMat, wMat, bMat;
     
     if(selectedMap === 'dust2') {
-        fMat = new THREE.MeshStandardMaterial({ map: createTexture('#c9a87d', '#8c704c', 'sand'), roughness: 1.0 });
-        wMat = new THREE.MeshStandardMaterial({ map: createTexture('#d6c29a', '#9c8861', 'grid'), roughness: 0.9 });
-        bMat = new THREE.MeshStandardMaterial({ map: createTexture('#8c6747', '#543d28', 'grid'), roughness: 0.8 });
+        fMat = new THREE.MeshStandardMaterial({ color: 0xc9a87d, roughness: 1.0 });
+        wMat = new THREE.MeshStandardMaterial({ map: createTexturedBrick('#d6c29a', '#8a744e'), roughness: 0.9 });
+        bMat = new THREE.MeshStandardMaterial({ map: createTexturedBrick('#8c6747', '#47311d'), roughness: 0.8 });
     } else if(selectedMap === 'mirage') {
-        fMat = new THREE.MeshStandardMaterial({ map: createTexture('#b09b7b', '#7a6a52', 'sand'), roughness: 0.9 });
-        wMat = new THREE.MeshStandardMaterial({ map: createTexture('#d4c3a7', '#9e8e75', 'grid'), roughness: 0.8 });
+        fMat = new THREE.MeshStandardMaterial({ color: 0xb09b7b, roughness: 0.9 });
+        wMat = new THREE.MeshStandardMaterial({ map: createTexturedBrick('#d4c3a7', '#8a7d65'), roughness: 0.8 });
         bMat = new THREE.MeshStandardMaterial({ color: 0x5a7694, roughness: 0.6 });
     } else if(selectedMap === 'inferno') {
-        fMat = new THREE.MeshStandardMaterial({ map: createTexture('#6e6e6e', '#474747', 'tiles'), roughness: 0.8 });
-        wMat = new THREE.MeshStandardMaterial({ map: createTexture('#a84b38', '#6b2d22', 'grid'), roughness: 0.9 });
+        fMat = new THREE.MeshStandardMaterial({ color: 0x6e6e6e, roughness: 0.8 });
+        wMat = new THREE.MeshStandardMaterial({ map: createTexturedBrick('#a84b38', '#5e251a'), roughness: 0.9 });
         bMat = new THREE.MeshStandardMaterial({ color: 0x7c9683, roughness: 0.7 });
     } else { 
-        fMat = new THREE.MeshStandardMaterial({ map: createTexture('#33383d', '#1f2226', 'asphalt'), roughness: 0.7 });
-        wMat = new THREE.MeshStandardMaterial({ map: createTexture('#a2adb8', '#737f8a', 'grid'), roughness: 0.7 });
+        fMat = new THREE.MeshStandardMaterial({ color: 0x33383d, roughness: 0.7 });
+        wMat = new THREE.MeshStandardMaterial({ map: createTexturedBrick('#a2adb8', '#545f69'), roughness: 0.7 });
         bMat = new THREE.MeshStandardMaterial({ color: 0x427aa1, metalness: 0.3, roughness: 0.5 });
     }
 
-    // Chão Principal da Cidade (Ruas e Calçadas)
+    // Chão Principal da Cidade
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), fMat);
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 
-    // Muros delimitadores externos (Bordas da cidade)
+    // Muros Delimitadores
     createBlock(0, 12, -200, 400, 24, 4, wMat); 
     createBlock(0, 12, 200, 400, 24, 4, wMat);
     createBlock(-200, 12, 0, 4, 24, 400, wMat); 
     createBlock(200, 12, 0, 4, 24, 400, wMat);
 
-    // GERADOR DE PRÉDIOS ENTERÁVEIS (Blocos urbanos reais com ruas e portas abertas)
+    // GERADOR DE PRÉDIOS COM MÚLTIPLOS ANDARES E JANELAS
     const cityLayout = [
-        {x: -90, z: 90, w: 50, d: 50, h: 28, mat: wMat},
-        {x: 90, z: 90, w: 50, d: 50, h: 32, mat: bMat},
-        {x: -90, z: -90, w: 50, d: 50, h: 26, mat: bMat},
-        {x: 90, z: -90, w: 50, d: 50, h: 30, mat: wMat},
-        {x: 0, z: 120, w: 60, d: 40, h: 35, mat: wMat},
-        {x: 0, z: -120, w: 60, d: 40, h: 35, mat: bMat},
-        {x: -130, z: 0, w: 40, d: 60, h: 25, mat: bMat},
-        {x: 130, z: 0, w: 40, d: 60, h: 25, mat: wMat}
+        {x: -90, z: 90, w: 50, d: 50, h: 32, mat: wMat},
+        {x: 90, z: 90, w: 50, d: 50, h: 36, mat: bMat},
+        {x: -90, z: -90, w: 50, d: 50, h: 30, mat: bMat},
+        {x: 90, z: -90, w: 50, d: 50, h: 34, mat: wMat},
+        {x: 0, z: 120, w: 60, d: 40, h: 38, mat: wMat},
+        {x: 0, z: -120, w: 60, d: 40, h: 38, mat: bMat},
+        {x: -130, z: 0, w: 40, d: 60, h: 28, mat: bMat},
+        {x: 130, z: 0, w: 40, d: 60, h: 28, mat: wMat}
     ];
 
     cityLayout.forEach(b => {
-        createEnterableBuilding(b.x, b.z, b.w, b.d, b.h, b.mat);
+        createMultiStoryBuilding(b.x, b.z, b.w, b.d, b.h, b.mat);
     });
 }
 
-// Cria um prédio com 4 paredes e uma porta frontal aberta para o jogador entrar
-function createEnterableBuilding(x, z, width, depth, height, mat) {
+// Prédio detalhado com andares múltiplos, lajes internas, sacadas e portas abertas
+function createMultiStoryBuilding(x, z, width, depth, height, mat) {
     const wallThick = 2;
-    // Parede Fundos
+    const floorsCount = 3; // 3 Andares
+    const floorHeight = height / floorsCount;
+
+    // Paredes externas com aberturas de porta no térreo
     createBlock(x, height/2, z - depth/2, width, height, wallThick, mat);
-    // Parede Esquerda
     createBlock(x - width/2, height/2, z, wallThick, height, depth, mat);
-    // Parede Direita
     createBlock(x + width/2, height/2, z, wallThick, height, depth, mat);
     
-    // Paredes Frontais com Vão de Porta no Meio (para o jogador entrar)
-    const doorWidth = 3.5;
-    const sideWidth = (width - doorWidth) / 2;
-    createBlock(x - width/2 + sideWidth/2, height/2, z + depth/2, sideWidth, height, wallThick, mat);
-    createBlock(x + width/2 - sideWidth/2, height/2, z + depth/2, sideWidth, height, wallThick, mat);
-    
-    // Teto / Laje do Prédio
+    const doorWidth = 4;
+    const sideW = (width - doorWidth) / 2;
+    createBlock(x - width/2 + sideW/2, height/2, z + depth/2, sideW, height, wallThick, mat);
+    createBlock(x + width/2 - sideW/2, height/2, z + depth/2, sideW, height, wallThick, mat);
+
+    // Lajes / Pisos internos para cada andar (permitindo que o jogador suba/explore andares)
+    for(let f = 1; f < floorsCount; f++) {
+        let floorY = f * floorHeight;
+        createBlock(x, floorY, z, width - 1, 0.6, depth - 1, mat);
+    }
+
+    // Telhado / Laje Superior
     createBlock(x, height, z, width, 1.5, depth, mat);
 }
 
@@ -600,6 +651,71 @@ function createBlock(x, y, z, w, h, d, mat) {
     collidables.push(new THREE.Box3().setFromObject(mesh)); 
     wallMeshes.push(mesh); 
     mapWallMeshes.push(mesh);
+}
+
+function throwGrenade() {
+    if (grenadesCount <= 0 || isDead || buyMenuOpen) return;
+    grenadesCount--;
+    updateHUD();
+
+    const gGeo = new THREE.SphereGeometry(0.18, 12, 12);
+    const gMat = new THREE.MeshStandardMaterial({color: 0x222222, metalness: 0.8, roughness: 0.4});
+    const gMesh = new THREE.Mesh(gGeo, gMat);
+    gMesh.position.copy(camera.position);
+
+    const camDir = new THREE.Vector3();
+    camera.getWorldDirection(camDir);
+    const velocity = camDir.clone().multiplyScalar(22).add(new THREE.Vector3(0, 6, 0));
+
+    scene.add(gMesh);
+    activeGrenades.push({
+        mesh: gMesh,
+        velocity: velocity,
+        explosionTime: performance.now() + 2000
+    });
+}
+
+function updateGrenades(delta, time) {
+    for (let i = activeGrenades.length - 1; i >= 0; i--) {
+        let g = activeGrenades[i];
+        g.velocity.y -= 9.8 * 2.5 * delta;
+        g.mesh.position.addScaledVector(g.velocity, delta);
+
+        if (g.mesh.position.y < 0.2) {
+            g.mesh.position.y = 0.2;
+            g.velocity.x *= 0.7;
+            g.velocity.z *= 0.7;
+        }
+
+        if (time >= g.explosionTime) {
+            playExplosionSound();
+            
+            // Efeito visual de clarão da explosão
+            const expLight = new THREE.PointLight(0xff5500, 5, 25);
+            expLight.position.copy(g.mesh.position);
+            scene.add(expLight);
+            setTimeout(() => scene.remove(expLight), 200);
+
+            // Dano em bots próximos
+            if (gameMode === 'bot') {
+                for (let bot of bots) {
+                    if (bot.mesh.position.distanceTo(g.mesh.position) < 12) {
+                        bot.hp -= 90;
+                        if (bot.hp <= 0) {
+                            myScore++; playerMoney += 300; updateHUD(); updateScoreboard();
+                            showKillFeed("+ $300 (Granada HE)");
+                            bot.hp = 100;
+                            bot.pos.copy(getSafeSpawn(camera.position)); 
+                            bot.mesh.position.copy(bot.pos);
+                        }
+                    }
+                }
+            }
+
+            scene.remove(g.mesh);
+            activeGrenades.splice(i, 1);
+        }
+    }
 }
 
 function build3DWeapon() {
@@ -899,6 +1015,8 @@ function updateBotLogic(delta, time) {
 function animate() {
     requestAnimationFrame(animate);
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
+
+    updateGrenades(delta, time);
 
     if (pointerLocked && !isDead && !buyMenuOpen) {
         if (isMouseDown && itemsConfig[getCurrentWeaponKey()].auto) {
