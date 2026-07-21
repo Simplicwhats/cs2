@@ -73,12 +73,11 @@ const itemsConfig = {
     grenade:{ name: "Granada HE", price: 300, type: 'gear', maxAmmo: 1 }
 };
 
-// Sistema de Inventário de Armas
 let inventory = {
     secondary: { key: 'deagle', ammo: 7, reserveAmmo: 35 },
     primary: null
 };
-let activeSlot = 'secondary'; // 'secondary' ou 'primary'
+let activeSlot = 'secondary';
 let hasArmor = false, hasHelmet = false, grenadesCount = 0;
 
 let lastShotTime = 0, isAiming = false, pointerLocked = false, buyMenuOpen = false, isMouseDown = false;
@@ -259,11 +258,11 @@ let isRunning = false, isCrouching = false;
 let velocity = new THREE.Vector3(), currentHeight = 1.8;
 let hp = 100, myScore = 0, enemyScore = 0, isDead = false;
 let gunGroup, muzzleFlashMesh, muzzleLight;
-let bots = []; // Agora são 5 bots simultâneos
+let bots = []; 
 let collidables = [], wallMeshes = [], mapWallMeshes = [];
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 let recoilOffset = 0;
-let playerBox = new THREE.Box3();
+let playerBox = new THREE.Box3(), botBox = new THREE.Box3(); // Variáveis corrigidas
 let lastSentTime = 0;
 
 btnStart.addEventListener('click', () => {
@@ -318,7 +317,6 @@ function toggleBuyMenu(show) {
     }
 }
 
-// Sistema de Compra atualizado para Armas, Colete, Capacete e Granada
 function buyWeapon(key) {
     const item = itemsConfig[key];
     if (!item || playerMoney < item.price) return;
@@ -397,7 +395,6 @@ function initGameEngine() {
         document.body.appendChild(scopeDiv);
     }
 
-    // Inicialização de 5 Bots simultâneos no modo treino
     if (gameMode === 'bot') {
         bots = [];
         for (let i = 0; i < 5; i++) {
@@ -439,7 +436,6 @@ function initGameEngine() {
         camera.quaternion.setFromEuler(cameraEuler);
     });
 
-    // Troca de arma via Scroll do Mouse ou Teclas 1 e 2
     window.addEventListener('wheel', (e) => {
         if (!pointerLocked || isDead || buyMenuOpen) return;
         if (inventory.primary) {
@@ -529,9 +525,8 @@ function createTexture(baseColor, detailColor, pattern) {
     return tex;
 }
 
-// Mapa ampliado com prédios, casas e janelas/aberturas em todos os mapas
 function buildMapGeometries() {
-    let fMat, wMat, bMat, roofMat;
+    let fMat, wMat, bMat;
     
     if(selectedMap === 'dust2') {
         fMat = new THREE.MeshStandardMaterial({ map: createTexture('#c9a87d', '#8c704c', 'sand'), roughness: 1.0 });
@@ -551,17 +546,14 @@ function buildMapGeometries() {
         bMat = new THREE.MeshStandardMaterial({ color: 0x3d7cc4, metalness: 0.4, roughness: 0.5 });
     }
 
-    // Chão Expandido (360x360)
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(360, 360), fMat);
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 
-    // Paredes Limítrofes Externas
     createBlock(0, 10, -180, 360, 20, 4, wMat); 
     createBlock(0, 10, 180, 360, 20, 4, wMat);
     createBlock(-180, 10, 0, 4, 20, 360, wMat); 
     createBlock(180, 10, 0, 4, 20, 360, wMat);
 
-    // Criação de Prédios e Casas com janelas (vãos vazados para esconderijos)
     createBuildingWithWindows(-70, 70, 40, 16, 40, wMat);
     createBuildingWithWindows(70, -70, 40, 16, 40, wMat);
     createBuildingWithWindows(-70, -70, 35, 12, 35, bMat);
@@ -570,15 +562,12 @@ function buildMapGeometries() {
     createBuildingWithWindows(0, -100, 50, 18, 25, wMat);
 }
 
-// Função auxiliar para construir estruturas com janelas/aberturas
 function createBuildingWithWindows(x, z, width, height, depth, mat) {
     const wallThick = 2;
-    // Paredes laterais com vãos simulando janelas
     createBlock(x - width/2 + wallThick/2, height/2, z, wallThick, height, depth, mat);
     createBlock(x + width/2 - wallThick/2, height/2, z, wallThick, height, depth, mat);
     createBlock(x, height/2, z - depth/2 + wallThick/2, width, height, wallThick, mat);
     createBlock(x, height/2, z + depth/2 - wallThick/2, width, height, wallThick, mat);
-    // Teto
     createBlock(x, height, z, width, 1.5, depth, mat);
 }
 
@@ -614,7 +603,7 @@ function build3DWeapon() {
         const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.2), mDark); barrel.rotation.x = Math.PI/2; barrel.position.set(0, 0.01, -0.35);
         barrelOffsetZ = -0.45;
         gunGroup.add(body, barrel);
-    } else { // Deagle (Pistola)
+    } else { 
         const body = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.07, 0.35), mDark);
         const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.2), mDark); barrel.rotation.x = Math.PI/2; barrel.position.set(0, 0, -0.27);
         barrelOffsetZ = -0.37;
@@ -733,7 +722,6 @@ function shoot() {
 function takeDamage(dmg, sourcePos) {
     if (isDead || isInvulnerable) return;
 
-    // Redução de dano por Colete e Capacete
     let finalDmg = dmg;
     if (hasArmor) finalDmg *= 0.7;
     if (hasHelmet && sourcePos && sourcePos.y > camera.position.y + 0.3) finalDmg *= 0.5;
@@ -832,7 +820,6 @@ function showKillFeed(txt) {
     setTimeout(() => feed.style.display='none', 2000);
 }
 
-// Lógica atualizada para gerenciar múltiplos 5 bots simultâneos
 function updateBotLogic(delta, time) {
     if (gameMode !== 'bot' || isDead) return;
 
