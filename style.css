@@ -80,3 +80,4 @@ h1 { font-size: 18px; color: #888; margin: 10px 0 30px 0; letter-spacing: 2px; f
 #pause-screen p { color: #aaa; font-size: 18px; }
 
 #kill-feed { position: absolute; top: 80px; right: 30px; display: none; z-index: 5; background: rgba(180, 40, 40, 0.85); color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: bold; border-left: 4px solid #ff4444; font-size: 16px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+
