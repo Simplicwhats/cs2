@@ -2,7 +2,6 @@
 body { margin: 0; overflow: hidden; font-family: 'Rajdhani', sans-serif; background-color: #020304; color: #fff; user-select: none; }
 #canvas-container { width: 100vw; height: 100vh; display: none; }
 
-/* EFEITOS GRÁFICOS E DANO */
 #vignette { position: absolute; top: 0; left: 0; width: 100%; height: 100%; box-shadow: inset 0 0 200px rgba(0,0,0,0.85); pointer-events: none; z-index: 1; }
 #damage-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; box-shadow: inset 0 0 150px rgba(255, 0, 0, 0); pointer-events: none; z-index: 2; transition: box-shadow 0.1s; }
 #damage-indicator {
@@ -81,4 +80,3 @@ h1 { font-size: 18px; color: #888; margin: 10px 0 30px 0; letter-spacing: 2px; f
 #pause-screen p { color: #aaa; font-size: 18px; }
 
 #kill-feed { position: absolute; top: 80px; right: 30px; display: none; z-index: 5; background: rgba(180, 40, 40, 0.85); color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: bold; border-left: 4px solid #ff4444; font-size: 16px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
-
