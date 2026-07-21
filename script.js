@@ -5,7 +5,48 @@ let hostConns = [];
 let myConn = null;  
 let networkPlayers = {}; 
 let playerNick = "Striker", selectedMap = "dust2";
-let playerMoney = 5000; // Moedas iniciais alteradas para 5000
+let playerMoney = 5000;
+
+// Configuração de Áudio Procedural para o Tiro
+let audioCtx = null;
+function playShootSound() {
+    try {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+
+        const bufferSize = audioCtx.sampleRate * 0.3;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1200, audioCtx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.25);
+
+        const gain = audioCtx.createGain();
+        gain.gain.setValueAtTime(1.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        noise.start();
+        noise.stop(audioCtx.currentTime + 0.3);
+    } catch (e) {
+        // Ignora caso o navegador bloqueie antes da primeira interação
+    }
+}
 
 const weaponsConfig = {
     deagle: { name: "Desert Eagle", damage: 60, fireRate: 350, maxAmmo: 7, totalAmmo: 35, spread: 0.008, recoil: 0.015, price: 700, auto: false },
@@ -469,6 +510,9 @@ function shoot() {
     if (now - lastShotTime < cfg.fireRate) return;
 
     lastShotTime = now; ammo--; updateHUD();
+    
+    // Dispara o som de tiro proceduralmente
+    playShootSound();
 
     gunGroup.position.z += 0.05; setTimeout(() => gunGroup.position.z -= 0.05, 50);
     muzzleFlashMesh.material.opacity = 0.8; muzzleFlashMesh.rotation.z = Math.random() * Math.PI; muzzleLight.intensity = 2.0;
@@ -556,7 +600,7 @@ function takeDamage(dmg, sourcePos) {
 
 function restartRound() {
     hp = 100; isDead = false;
-    playerMoney = 5000; // Reinicia mantendo a economia de 5000
+    playerMoney = 5000; 
     currentWeapon = 'deagle'; 
     ammo = weaponsConfig.deagle.maxAmmo; reserveAmmo = weaponsConfig.deagle.totalAmmo;
     
@@ -643,7 +687,6 @@ function animate() {
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
 
     if (pointerLocked && !isDead && !buyMenuOpen) {
-        // Disparo automático em rajada ao segurar o botão para P90, M4A4, AK-47
         if (isMouseDown && weaponsConfig[currentWeapon].auto) {
             shoot();
         }
