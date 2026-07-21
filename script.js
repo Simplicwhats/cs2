@@ -660,3 +660,4 @@ function animate() {
     prevTime = time;
     renderer.render(scene, camera);
 }
+
