@@ -24,11 +24,11 @@ function playShootSound() {
 
         const filter = audioCtx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(1200, audioCtx.currentTime);
+        filter.frequency.setValueAtTime(1400, audioCtx.currentTime);
         filter.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.25);
 
         const gain = audioCtx.createGain();
-        gain.gain.setValueAtTime(1.2, audioCtx.currentTime);
+        gain.gain.setValueAtTime(1.5, audioCtx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
 
         noise.connect(filter);
@@ -72,6 +72,8 @@ const weaponsConfig = {
 
 let currentWeapon = 'deagle';
 let lastShotTime = 0, isAiming = false, pointerLocked = false, buyMenuOpen = false, isMouseDown = false;
+let isInvulnerable = false, invulnerableTimeout = null;
+let lastKillerPos = null;
 
 const btnStart = document.getElementById('btn-start');
 const container = document.getElementById('canvas-container');
@@ -647,13 +649,14 @@ function shoot() {
 }
 
 function takeDamage(dmg, sourcePos) {
-    if (isDead) return;
+    if (isDead || isInvulnerable) return;
     hp -= dmg;
     
     document.getElementById('damage-overlay').style.boxShadow = "inset 0 0 200px rgba(255, 0, 0, 0.6)";
     setTimeout(() => document.getElementById('damage-overlay').style.boxShadow = "inset 0 0 150px rgba(255,0,0,0)", 150);
     
     if(sourcePos) {
+        lastKillerPos = sourcePos.clone();
         const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir); camDir.y = 0; camDir.normalize();
         const toHit = new THREE.Vector3().subVectors(sourcePos, camera.position); toHit.y = 0; toHit.normalize();
         let angle = Math.atan2(camDir.clone().cross(toHit).y, camDir.dot(toHit));
@@ -675,7 +678,7 @@ function takeDamage(dmg, sourcePos) {
             enemyScore++; updateScoreboard(); 
         }
         const msg = document.getElementById('round-message');
-        msg.innerText = "VOCÊ FOI ELIMINADO";
+        msg.innerText = "VOCÊ FOI ELIMINADO (DEATHCAM)";
         msg.style.display = 'block';
 
         const scopeDiv = document.getElementById('sniper-scope');
@@ -688,11 +691,23 @@ function takeDamage(dmg, sourcePos) {
 }
 
 function restartRound() {
-    hp = 100; isDead = false;
+    hp = 100; isDead = false; lastKillerPos = null;
     playerMoney = 5000; 
     currentWeapon = 'deagle'; 
     ammo = weaponsConfig.deagle.maxAmmo; reserveAmmo = weaponsConfig.deagle.totalAmmo;
     
+    isInvulnerable = true;
+    if (invulnerableTimeout) clearTimeout(invulnerableTimeout);
+    
+    const msg = document.getElementById('round-message');
+    msg.innerText = "REVIVEU! 20 SEGUNDOS DE INVULNERABILIDADE";
+    msg.style.display = 'block';
+    
+    invulnerableTimeout = setTimeout(() => {
+        isInvulnerable = false;
+        if (!isDead) msg.style.display = 'none';
+    }, 20000);
+
     updateHUD();
     build3DWeapon();
     camera.position.copy(getSafeSpawn(null)); 
@@ -703,7 +718,6 @@ function restartRound() {
         botMesh.position.copy(botData.pos);
     }
     
-    document.getElementById('round-message').style.display = 'none';
     document.body.requestPointerLock();
 }
 
@@ -823,6 +837,8 @@ function animate() {
             gunGroup.position.y = THREE.MathUtils.lerp(gunGroup.position.y, isAiming ? -0.15 : -0.22, 0.15);
             gunGroup.position.x = THREE.MathUtils.lerp(gunGroup.position.x, isAiming ? 0 : 0.18, 0.15);
         }
+    } else if (isDead && lastKillerPos) {
+        camera.lookAt(lastKillerPos);
     }
 
     camera.fov += ((isAiming ? weaponsConfig[currentWeapon].zoomFov || 50 : 80) - camera.fov) * 15 * delta;
