@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WEB CS 2 - TACTICAL UPDATE</title>
+    <title>WEB CS 2 - MULTIPLAYER SYNC</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
@@ -40,7 +40,7 @@
                 <input type="text" id="lobby-link" readonly onclick="this.select(); document.execCommand('copy'); alert('Link de convite copiado!');">
             </div>
 
-            <button id="btn-start" class="start-btn">CONECTAR AO SERVIDOR</button>
+            <button id="btn-start" class="start-btn">INICIAR PARTIDA</button>
         </div>
     </div>
 
@@ -50,7 +50,7 @@
         <p>Aperte <b>ESC</b> para abrir o menu ou clique abaixo para voltar.</p>
         <button id="btn-resume">VOLTAR AO JOGO</button>
     </div>
-    <div id="round-message">BOT VENCEU A RODADA</div>
+    <div id="round-message">VOCÊ FOI ELIMINADO</div>
 
     <!-- MENU DE COMPRA (B) -->
     <div id="buy-menu" class="hidden">
@@ -83,7 +83,7 @@
     <div id="scoreboard">
         <div class="team-ct"><span id="display-my-name">VOCÊ</span> <span id="score-player">0</span></div>
         <div class="vs-badge">VS</div>
-        <div class="team-tr"><span id="score-enemy">0</span> <span id="display-enemy-name">INIMIGOS</span></div>
+        <div class="team-tr"><span id="score-enemy">0</span> <span id="display-enemy-name">OPONENTES</span></div>
     </div>
 
     <div id="hud-bottom-left" class="hud-panel">
@@ -93,11 +93,11 @@
 
     <div id="hud-bottom-right" class="hud-panel">
         <div class="hud-ammo-wrap">
-            <span class="hud-value" id="ammo">30</span>
-            <span class="hud-reserve" id="reserve-ammo">/ 90</span>
+            <span class="hud-value" id="ammo">7</span>
+            <span class="hud-reserve" id="reserve-ammo">/ 35</span>
         </div>
         <div class="hud-weapon-info">
-            <div id="weapon-display">AK-47</div>
+            <div id="weapon-display">DESERT EAGLE</div>
             <div class="money-text" id="money-display">$800</div>
         </div>
     </div>
@@ -105,7 +105,7 @@
     <div id="buy-hint">Pressione <b>[B]</b> para Comprar Armas</div>
     <div id="crosshair"></div>
     
-    <!-- EFEITOS VISUAIS (GRÁFICOS E DANO) -->
+    <!-- EFEITOS VISUAIS -->
     <div id="vignette"></div>
     <div id="damage-overlay"></div>
     <div id="damage-indicator"></div>
@@ -118,4 +118,3 @@
     <script src="script.js"></script>
 </body>
 </html>
-
