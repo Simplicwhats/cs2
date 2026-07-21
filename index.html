@@ -3,126 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WEB CS 2 - SOURCE EDITION</title>
+    <title>WEB CS 2 - ENGINE UPDATE</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Teko:wght@500;700&family=Yantramanav:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- LOBBY PRINCIPAL -->
+    <!-- LOBBY -->
     <div id="lobby-container">
         <div class="lobby-panel">
-            <div class="cs-logo">CS2 WEB</div>
-            <h1>COUNTER-STRAW: PRO</h1>
+            <div class="cs-logo">CS2 WEB<span>.js</span></div>
+            <h1>GLOBAL OFFENSIVE ENGINE</h1>
             
             <div class="input-group">
-                <label>NICKNAME DO AGENTE</label>
-                <input type="text" id="player-nick" class="nick-input" value="Player_1" maxlength="15">
+                <label>NICKNAME</label>
+                <input type="text" id="player-nick" class="nick-input" value="Striker" maxlength="15">
             </div>
 
             <div class="input-group">
-                <label>SELECIONE O MAPA</label>
+                <label>MAPA TÁTICO</label>
                 <select id="map-select" class="custom-select">
-                    <option value="dust2">de_dust2 (Deserto Tático)</option>
-                    <option value="mirage">de_mirage (Urbano Ocre)</option>
-                    <option value="inferno">de_inferno (Tijolos & Alamedas)</option>
+                    <option value="dust2">Dust II (Deserto & Caixotes)</option>
+                    <option value="mirage">Mirage (Urbano & Madeira)</option>
+                    <option value="inferno">Inferno (Tijolos & Alamedas)</option>
                 </select>
             </div>
             
             <div class="mode-selection">
-                <button class="mode-btn active" id="mode-bot" onclick="setGameMode('bot')">BOT SOLO</button>
-                <button class="mode-btn" id="mode-p2p" onclick="setGameMode('p2p')">1v1 MULTIPLAYER</button>
+                <button class="mode-btn active" id="mode-bot" onclick="setGameMode('bot')">MODO TREINO (BOT)</button>
+                <button class="mode-btn" id="mode-p2p" onclick="setGameMode('p2p')">1V1 ONLINE (P2P)</button>
             </div>
 
             <div class="link-section" id="net-link-section" style="display:none;">
-                <input type="text" id="lobby-link" readonly onclick="this.select(); document.execCommand('copy'); alert('Link copiado!');">
+                <input type="text" id="lobby-link" readonly onclick="this.select(); document.execCommand('copy'); alert('Link de convite copiado!');">
             </div>
 
-            <button id="btn-start" class="start-btn">ENTRAR NO SERVIDOR</button>
+            <button id="btn-start" class="start-btn">CONECTAR AO SERVIDOR</button>
         </div>
     </div>
 
-    <!-- TELA DE PAUSA -->
+    <!-- PAUSA -->
     <div id="pause-screen">
-        <h2>JOGO PAUSADO</h2>
-        <p>Pressione <b>ESC</b> para retomar ou clique no botão abaixo</p>
-        <button id="btn-resume">CONTINUAR COMBATE</button>
+        <h2>PARTIDA PAUSADA</h2>
+        <p>Aperte <b>ESC</b> para abrir as configurações ou clique abaixo para voltar.</p>
+        <button id="btn-resume">VOLTAR AO JOGO</button>
     </div>
 
-    <!-- MENU DE COMPRA CS2 (TECLA 'B') -->
+    <!-- MENU DE COMPRA (B) -->
     <div id="buy-menu" class="hidden">
         <div class="buy-header">
-            <h2>MERCADO DE ARMAMENTO</h2>
-            <div class="buy-money">SEU SALDO: <span id="buy-money-display">$16000</span></div>
+            <h2>EQUIPAMENTOS</h2>
+            <div class="buy-money">SALDO: <span id="buy-money-display" class="money-text">$16000</span></div>
         </div>
         <div class="buy-grid">
             <div class="buy-column">
                 <h3>PISTOLAS</h3>
-                <button class="buy-item" onclick="buyWeapon('deagle')">
-                    <span class="item-name">Desert Eagle</span>
-                    <span class="item-price">$700</span>
-                </button>
+                <button class="buy-item" onclick="buyWeapon('deagle')"><span>Desert Eagle</span><span class="item-price">$700</span></button>
             </div>
             <div class="buy-column">
-                <h3>SMGs & INTERMEDIÁRIAS</h3>
-                <button class="buy-item" onclick="buyWeapon('p90')">
-                    <span class="item-name">P90</span>
-                    <span class="item-price">$2350</span>
-                </button>
+                <h3>PESADAS/SMG</h3>
+                <button class="buy-item" onclick="buyWeapon('p90')"><span>P90</span><span class="item-price">$2350</span></button>
             </div>
             <div class="buy-column">
                 <h3>FUZIS</h3>
-                <button class="buy-item" onclick="buyWeapon('ak47')">
-                    <span class="item-name">AK-47</span>
-                    <span class="item-price">$2700</span>
-                </button>
-                <button class="buy-item" onclick="buyWeapon('m4a4')">
-                    <span class="item-name">M4A4</span>
-                    <span class="item-price">$3100</span>
-                </button>
+                <button class="buy-item" onclick="buyWeapon('ak47')"><span>AK-47</span><span class="item-price">$2700</span></button>
+                <button class="buy-item" onclick="buyWeapon('m4a4')"><span>M4A4</span><span class="item-price">$3100</span></button>
             </div>
             <div class="buy-column">
-                <h3>SNIPERS</h3>
-                <button class="buy-item" onclick="buyWeapon('awp')">
-                    <span class="item-name">AWP</span>
-                    <span class="item-price">$4750</span>
-                </button>
+                <h3>SNIPER</h3>
+                <button class="buy-item" onclick="buyWeapon('awp')"><span>AWP</span><span class="item-price">$4750</span></button>
             </div>
         </div>
-        <div class="buy-footer">Pressione <b>'B'</b> ou <b>ESC</b> para fechar</div>
     </div>
 
-    <!-- PLACAR CS2 -->
+    <!-- HUD IN-GAME -->
     <div id="scoreboard">
-        <div class="team team-ct"><span id="display-my-name">VOCÊ</span> <span id="score-player" class="score-num">0</span></div>
+        <div class="team-ct"><span id="display-my-name">VOCÊ</span> <span id="score-player">0</span></div>
         <div class="vs-badge">VS</div>
-        <div class="team team-tr"><span id="score-enemy" class="score-num">0</span> <span id="display-enemy-name">INIMIGO</span></div>
+        <div class="team-tr"><span id="score-enemy">0</span> <span id="display-enemy-name">INIMIGO</span></div>
     </div>
 
-    <!-- HUD CS2 -->
-    <div id="hud">
-        <div class="hud-card">
-            <span class="hud-label">SAÚDE</span>
-            <span id="hp" class="hud-value hp-val">100</span>
+    <div id="hud-bottom-left" class="hud-panel">
+        <div class="hud-icon">♥</div>
+        <div class="hud-value hp-val" id="hp">100</div>
+    </div>
+
+    <div id="hud-bottom-right" class="hud-panel">
+        <div class="hud-ammo-wrap">
+            <span class="hud-value" id="ammo">30</span>
+            <span class="hud-reserve" id="reserve-ammo">/ 90</span>
         </div>
-        <div class="hud-card">
-            <span class="hud-label">ECONOMIA</span>
-            <span id="money-display" class="hud-value money-val">$800</span>
-        </div>
-        <div class="hud-card">
-            <span class="hud-label">MUNIÇÃO</span>
-            <span id="ammo" class="hud-value">30 / 90</span>
-        </div>
-        <div class="hud-card weapon-card">
-            <span class="hud-label">EQUIPAMENTO</span>
-            <span id="weapon-display" class="hud-value weapon-val">AK-47</span>
+        <div class="hud-weapon-info">
+            <div id="weapon-display">AK-47</div>
+            <div class="money-text" id="money-display">$800</div>
         </div>
     </div>
 
-    <div id="buy-hint">Pressione <b>[ B ]</b> para abrir o Menu de Compras</div>
+    <div id="buy-hint">Pressione <b>[B]</b> para Comprar Armas</div>
     <div id="crosshair"></div>
     <div id="kill-feed"></div>
     <div id="canvas-container"></div>
+    
+    <div id="damage-overlay"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
