@@ -34,13 +34,16 @@ if (urlParams.get('room')) {
     document.getElementById('mode-1v1').classList.add('active');
     document.getElementById('mode-bot').classList.remove('active');
     document.getElementById('net-link-section').style.display = 'block';
-    document.getElementById('net-status-label').innerText = "Conectando ao Host...";
+    document.getElementById('net-status-label').innerText = "Conectado! Aguardando o Host iniciar...";
+    btnStart.innerText = "AGUARDANDO O HOST...";
+    btnStart.disabled = true;
     initClient(urlParams.get('room'));
 } else {
     initHost();
 }
 
 function setGameMode(mode) {
+    if (!isHost && mode !== 'bot') return;
     gameMode = mode;
     isHost = true;
     document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
@@ -50,11 +53,11 @@ function setGameMode(mode) {
         maxClients = 0;
         document.getElementById('net-link-section').style.display = 'none';
         btnStart.disabled = false;
+        btnStart.innerText = "INICIAR PARTIDA";
     } else {
         maxClients = mode === '1v1' ? 1 : 2;
         document.getElementById('net-link-section').style.display = 'block';
         updateLobbyStatus();
-        btnStart.disabled = hostConns.length < maxClients;
     }
 }
 
@@ -67,6 +70,10 @@ function initHost() {
         hostConns.push(c);
         c.on('data', (d) => handleData(c.peer, d));
         c.on('open', () => { updateLobbyStatus(); });
+        c.on('close', () => {
+            hostConns = hostConns.filter(conn => conn !== c);
+            updateLobbyStatus();
+        });
     });
 }
 
@@ -75,9 +82,8 @@ function initClient(targetRoom) {
     peer.on('open', () => {
         myConn = peer.connect(targetRoom);
         myConn.on('open', () => {
-            document.getElementById('net-status-label').innerText = "Pronto!";
+            document.getElementById('net-status-label').innerText = "Conectado com sucesso!";
             document.getElementById('net-status-label').style.color = "#00ff88";
-            btnStart.disabled = false;
         });
         myConn.on('data', (d) => handleData('host', d));
     });
@@ -85,9 +91,17 @@ function initClient(targetRoom) {
 
 function updateLobbyStatus() {
     if (gameMode === 'bot') return;
-    document.getElementById('net-status-label').innerText = `Jogadores Conectados: (${hostConns.length}/${maxClients})`;
-    document.getElementById('net-status-label').style.color = hostConns.length >= maxClients ? "#00ff88" : "#f0ad4e";
-    if (hostConns.length >= maxClients) btnStart.disabled = false;
+    const label = document.getElementById('net-status-label');
+    label.innerText = `Jogadores Conectados: (${hostConns.length}/${maxClients})`;
+    label.style.color = hostConns.length >= maxClients ? "#00ff88" : "#f0ad4e";
+    
+    if (hostConns.length >= maxClients) {
+        btnStart.disabled = false;
+        btnStart.innerText = "INICIAR PARTIDA";
+    } else {
+        btnStart.disabled = true;
+        btnStart.innerText = `AGUARDANDO JOGADORES (${hostConns.length}/${maxClients})`;
+    }
 }
 
 function broadcastData(data, excludePeer = null) {
@@ -96,9 +110,16 @@ function broadcastData(data, excludePeer = null) {
 }
 
 function handleData(senderId, data) {
-    if (isHost && data.type !== 'hit') { data.id = senderId; broadcastData(data, senderId); }
+    if (isHost && data.type !== 'hit' && data.type !== 'start_game') { 
+        data.id = senderId; 
+        broadcastData(data, senderId); 
+    }
     const peerId = data.id || senderId;
 
+    if (data.type === 'start_game') {
+        selectedMap = data.map;
+        startGameSession();
+    }
     if (data.type === 'pos_update') {
         if (!networkPlayers[peerId]) createNetworkPlayer(peerId);
         networkPlayers[peerId].position.set(data.x, data.y, data.z);
@@ -115,6 +136,7 @@ function handleData(senderId, data) {
 }
 
 function createNetworkPlayer(id) {
+    if (networkPlayers[id]) return;
     const group = new THREE.Group();
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 1.8, 16), new THREE.MeshStandardMaterial({ color: 0xb33939, roughness: 0.6 }));
     body.position.y = 0.9; body.castShadow = true;
@@ -126,7 +148,6 @@ function createNetworkPlayer(id) {
     networkPlayers[id] = group;
 }
 
-// VARIÁVEIS DA ENGINE
 let scene, camera, renderer, prevTime = performance.now();
 let moveF = false, moveB = false, moveL = false, moveR = false, canJump = true;
 let isRunning = false, isCrouching = false;
@@ -140,12 +161,18 @@ let botData = { pos: new THREE.Vector3(20, 1.2, -20), hp: 100, lastShot: 0, stra
 let playerBox = new THREE.Box3(), botBox = new THREE.Box3();
 let lastSentTime = 0;
 
-// INICIAR
 btnStart.addEventListener('click', () => {
     playerNick = document.getElementById('player-nick').value || "Striker";
     selectedMap = document.getElementById('map-select').value;
     document.getElementById('display-my-name').innerText = playerNick.toUpperCase();
     
+    if (isHost && gameMode !== 'bot') {
+        broadcastData({ type: 'start_game', map: selectedMap });
+    }
+    startGameSession();
+});
+
+function startGameSession() {
     document.getElementById('lobby-container').style.display = 'none';
     container.style.display = 'block';
     document.getElementById('scoreboard').style.display = 'flex';
@@ -158,7 +185,7 @@ btnStart.addEventListener('click', () => {
     initGameEngine();
     animate();
     document.body.requestPointerLock();
-});
+}
 
 document.getElementById('btn-resume').addEventListener('click', () => document.body.requestPointerLock());
 document.addEventListener('pointerlockchange', () => {
@@ -200,7 +227,6 @@ function updateScoreboard() {
     document.getElementById('score-enemy').innerText = enemyScore;
 }
 
-// INICIALIZADOR DA ENGINE
 function initGameEngine() {
     scene = new THREE.Scene();
     
@@ -244,7 +270,6 @@ function initGameEngine() {
     renderer.toneMappingExposure = 1.1; 
     container.appendChild(renderer.domElement);
 
-    // CONTROLES
     document.addEventListener('mousemove', (e) => {
         if (!pointerLocked || isDead || buyMenuOpen) return;
         const sens = isAiming ? 0.0006 : 0.0015;
@@ -401,7 +426,6 @@ function build3DWeapon() {
         gunGroup.add(body, barrel);
     }
 
-    // Adiciona o braço/mão do jogador na arma para melhorar o gráfico
     const skinMat = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.6 });
     const sleeveMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.9 });
     const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.2), sleeveMat);
@@ -478,7 +502,6 @@ function shoot() {
     }
 }
 
-// SISTEMA DE DANO REFEITO COM INDICADOR DE IMPACTO E REINÍCIO DE RODADA
 function takeDamage(dmg, sourcePos) {
     if (isDead) return;
     hp -= dmg;
@@ -486,7 +509,6 @@ function takeDamage(dmg, sourcePos) {
     document.getElementById('damage-overlay').style.boxShadow = "inset 0 0 200px rgba(255, 0, 0, 0.6)";
     setTimeout(() => document.getElementById('damage-overlay').style.boxShadow = "inset 0 0 150px rgba(255,0,0,0)", 150);
     
-    // Calcula o ângulo do hit indicator
     if(sourcePos) {
         const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir); camDir.y = 0; camDir.normalize();
         const toHit = new THREE.Vector3().subVectors(sourcePos, camera.position); toHit.y = 0; toHit.normalize();
@@ -501,24 +523,26 @@ function takeDamage(dmg, sourcePos) {
     
     if (hp <= 0) {
         hp = 0; isDead = true;
-        if(gameMode !== 'bot') broadcastData({ type: 'death' });
-        else { 
+        if(gameMode !== 'bot') {
+            broadcastData({ type: 'death' });
+            enemyScore++; updateScoreboard();
+        } else { 
             enemyScore++; updateScoreboard(); 
-            const msg = document.getElementById('round-message');
-            msg.innerText = "BOT VENCEU A RODADA";
-            msg.style.display = 'block';
         }
+        const msg = document.getElementById('round-message');
+        msg.innerText = "VOCÊ FOI ELIMINADO";
+        msg.style.display = 'block';
+
         document.exitPointerLock();
         setTimeout(restartRound, 4000);
     }
     updateHUD();
 }
 
-// SISTEMA DE REINÍCIO DO ROUND (Como no CS2)
 function restartRound() {
     hp = 100; isDead = false;
-    playerMoney = 800; // Reset na economia
-    currentWeapon = 'deagle'; // Volta para a pistola inicial
+    playerMoney = 800; 
+    currentWeapon = 'deagle'; 
     ammo = weaponsConfig.deagle.maxAmmo; reserveAmmo = weaponsConfig.deagle.totalAmmo;
     
     updateHUD();
@@ -553,7 +577,6 @@ function showKillFeed(txt) {
     setTimeout(() => feed.style.display='none', 2000);
 }
 
-// BOT AGORA DÁ STRAFE (ANDA DE LADO) PARA NÃO FICAR PARADO ENQUANTO ATIRA
 function updateBotLogic(delta, time) {
     if (gameMode !== 'bot' || !botMesh || isDead) return;
     const dist = botMesh.position.distanceTo(camera.position);
@@ -567,10 +590,8 @@ function updateBotLogic(delta, time) {
     botMesh.lookAt(camera.position.x, botMesh.position.y, camera.position.z);
 
     if (hasLOS && dist < 45) {
-        // Atirando
         if (time - botData.lastShot > 600) { botData.lastShot = time; if (Math.random() > 0.4) takeDamage(14, botMesh.position); }
         
-        // Strafing Esquerda/Direita para não ficar parado
         const strafeVetor = new THREE.Vector3().crossVectors(dirToPlayer, new THREE.Vector3(0,1,0)).normalize();
         const oldPos = botMesh.position.clone();
         botMesh.position.addScaledVector(strafeVetor, 3.5 * botData.strafeDir * delta);
@@ -579,7 +600,7 @@ function updateBotLogic(delta, time) {
         for (let box of collidables) {
             if (botBox.intersectsBox(box)) { botMesh.position.copy(oldPos); botData.strafeDir *= -1; break; }
         }
-        if (Math.random() < 0.01) botData.strafeDir *= -1; // Muda de direção aleatoriamente
+        if (Math.random() < 0.01) botData.strafeDir *= -1;
     } else {
         const oldPos = botMesh.position.clone();
         const moveVetor = new THREE.Vector3();
@@ -660,4 +681,3 @@ function animate() {
     prevTime = time;
     renderer.render(scene, camera);
 }
-
