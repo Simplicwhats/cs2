@@ -381,8 +381,8 @@ function initGameEngine() {
     camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.copy(getSafeSpawn(null)); 
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); scene.add(ambientLight);
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444455, 0.7); hemiLight.position.set(0, 100, 0); scene.add(hemiLight);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); scene.add(ambientLight);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x666677, 1.0); hemiLight.position.set(0, 100, 0); scene.add(hemiLight);
     const dirLight = new THREE.DirectionalLight(0xfffaee, 1.3);
     dirLight.position.set(100, 200, 100); dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048;
