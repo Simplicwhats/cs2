@@ -5,18 +5,18 @@ let hostConns = [];
 let myConn = null;  
 let networkPlayers = {}; 
 let playerNick = "Striker", selectedMap = "dust2";
-let playerMoney = 800;
+let playerMoney = 5000; // Moedas iniciais alteradas para 5000
 
 const weaponsConfig = {
-    deagle: { name: "Desert Eagle", damage: 60, fireRate: 350, maxAmmo: 7, totalAmmo: 35, spread: 0.008, recoil: 0.015, price: 700 },
-    p90:    { name: "P90", damage: 22, fireRate: 70, maxAmmo: 50, totalAmmo: 100, spread: 0.012, recoil: 0.005, price: 2350 },
-    ak47:   { name: "AK-47", damage: 36, fireRate: 100, maxAmmo: 30, totalAmmo: 90, spread: 0.008, recoil: 0.010, price: 2700 },
-    m4a4:   { name: "M4A4", damage: 28, fireRate: 88, maxAmmo: 30, totalAmmo: 90, spread: 0.006, recoil: 0.007, price: 3100 },
-    awp:    { name: "AWP", damage: 115, fireRate: 1300, maxAmmo: 5, totalAmmo: 30, spread: 0.001, recoil: 0.030, price: 4750, zoomFov: 20 }
+    deagle: { name: "Desert Eagle", damage: 60, fireRate: 350, maxAmmo: 7, totalAmmo: 35, spread: 0.008, recoil: 0.015, price: 700, auto: false },
+    p90:    { name: "P90", damage: 22, fireRate: 80, maxAmmo: 50, totalAmmo: 100, spread: 0.012, recoil: 0.005, price: 2350, auto: true },
+    ak47:   { name: "AK-47", damage: 36, fireRate: 110, maxAmmo: 30, totalAmmo: 90, spread: 0.008, recoil: 0.010, price: 2700, auto: true },
+    m4a4:   { name: "M4A4", damage: 28, fireRate: 95, maxAmmo: 30, totalAmmo: 90, spread: 0.006, recoil: 0.007, price: 3100, auto: true },
+    awp:    { name: "AWP", damage: 115, fireRate: 1300, maxAmmo: 5, totalAmmo: 30, spread: 0.001, recoil: 0.030, price: 4750, zoomFov: 20, auto: false }
 };
 
 let currentWeapon = 'deagle';
-let lastShotTime = 0, isAiming = false, pointerLocked = false, buyMenuOpen = false;
+let lastShotTime = 0, isAiming = false, pointerLocked = false, buyMenuOpen = false, isMouseDown = false;
 
 const btnStart = document.getElementById('btn-start');
 const container = document.getElementById('canvas-container');
@@ -190,14 +190,21 @@ function startGameSession() {
 document.getElementById('btn-resume').addEventListener('click', () => document.body.requestPointerLock());
 document.addEventListener('pointerlockchange', () => {
     pointerLocked = !!document.pointerLockElement;
-    if (pointerLocked) { pauseScreen.style.display = 'none'; if(buyMenuOpen) toggleBuyMenu(false); } 
-    else { moveF = moveB = moveL = moveR = false; if(!buyMenuOpen && !isDead) pauseScreen.style.display = 'flex'; }
+    if (pointerLocked) { 
+        pauseScreen.style.display = 'none'; 
+        if(buyMenuOpen) toggleBuyMenu(false); 
+    } else { 
+        moveF = moveB = moveL = moveR = false; 
+        isMouseDown = false;
+        if(!buyMenuOpen && !isDead) pauseScreen.style.display = 'flex'; 
+    }
 });
 
 function toggleBuyMenu(show) {
     buyMenuOpen = show;
     if(show) {
         document.exitPointerLock();
+        isMouseDown = false;
         document.getElementById('buy-money-display').innerText = `$${playerMoney}`;
         buyMenu.classList.remove('hidden');
     } else {
@@ -309,10 +316,17 @@ function initGameEngine() {
     document.addEventListener('mousedown', (e) => {
         if (buyMenuOpen || isDead) return;
         if (!pointerLocked) { document.body.requestPointerLock(); return; }
-        if (e.button === 0) shoot();
+        if (e.button === 0) {
+            isMouseDown = true;
+            shoot();
+        }
         if (e.button === 2) setAim(true);
     });
-    document.addEventListener('mouseup', (e) => { if (e.button === 2) setAim(false); });
+    
+    document.addEventListener('mouseup', (e) => { 
+        if (e.button === 0) isMouseDown = false;
+        if (e.button === 2) setAim(false); 
+    });
 }
 
 function getSafeSpawn(avoidPos) {
@@ -523,6 +537,7 @@ function takeDamage(dmg, sourcePos) {
     
     if (hp <= 0) {
         hp = 0; isDead = true;
+        isMouseDown = false;
         if(gameMode !== 'bot') {
             broadcastData({ type: 'death' });
             enemyScore++; updateScoreboard();
@@ -541,7 +556,7 @@ function takeDamage(dmg, sourcePos) {
 
 function restartRound() {
     hp = 100; isDead = false;
-    playerMoney = 800; 
+    playerMoney = 5000; // Reinicia mantendo a economia de 5000
     currentWeapon = 'deagle'; 
     ammo = weaponsConfig.deagle.maxAmmo; reserveAmmo = weaponsConfig.deagle.totalAmmo;
     
@@ -628,6 +643,11 @@ function animate() {
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
 
     if (pointerLocked && !isDead && !buyMenuOpen) {
+        // Disparo automático em rajada ao segurar o botão para P90, M4A4, AK-47
+        if (isMouseDown && weaponsConfig[currentWeapon].auto) {
+            shoot();
+        }
+
         const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir); camDir.y = 0; camDir.normalize();
         const camRight = new THREE.Vector3().crossVectors(camDir, camera.up).normalize();
 
