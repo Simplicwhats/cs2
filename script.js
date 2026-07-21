@@ -262,7 +262,7 @@ let bots = [];
 let collidables = [], wallMeshes = [], mapWallMeshes = [];
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 let recoilOffset = 0;
-let playerBox = new THREE.Box3(), botBox = new THREE.Box3(); // Variáveis corrigidas
+let playerBox = new THREE.Box3(), botBox = new THREE.Box3();
 let lastSentTime = 0;
 
 btnStart.addEventListener('click', () => {
@@ -367,21 +367,21 @@ function getCurrentWeaponKey() {
 function initGameEngine() {
     scene = new THREE.Scene();
     
-    let bgColor = 0xdeceaa;
+    let bgColor = 0xd6e4f0;
     if(selectedMap === 'mirage') bgColor = 0xaecce8;
-    if(selectedMap === 'inferno') bgColor = 0x7c8c9e;
-    if(selectedMap === 'nuke') bgColor = 0x8a99a8;
+    if(selectedMap === 'inferno') bgColor = 0x8a99a8;
+    if(selectedMap === 'nuke') bgColor = 0x708090;
     
     scene.background = new THREE.Color(bgColor);
-    scene.fog = new THREE.FogExp2(bgColor, 0.003);
+    scene.fog = new THREE.FogExp2(bgColor, 0.0025);
 
     camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.copy(getSafeSpawn(null)); 
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); scene.add(ambientLight);
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x666677, 1.0); hemiLight.position.set(0, 100, 0); scene.add(hemiLight);
-    const dirLight = new THREE.DirectionalLight(0xfffaee, 1.3);
-    dirLight.position.set(100, 200, 100); dirLight.castShadow = true;
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85); scene.add(ambientLight);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x666677, 1.1); hemiLight.position.set(0, 100, 0); scene.add(hemiLight);
+    const dirLight = new THREE.DirectionalLight(0xfffaee, 1.4);
+    dirLight.position.set(120, 250, 120); dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048;
     scene.add(dirLight);
 
@@ -515,8 +515,8 @@ function createTexture(baseColor, detailColor, pattern) {
         ctx.globalAlpha = Math.random() * 0.4;
         ctx.fillRect(Math.random()*512, Math.random()*512, Math.random()*4+1, Math.random()*4+1);
     }
-    if(pattern === 'grid' || pattern === 'tiles') {
-        ctx.globalAlpha = 0.5; ctx.strokeStyle = detailColor; ctx.lineWidth = 3;
+    if(pattern === 'grid' || pattern === 'tiles' || pattern === 'asphalt') {
+        ctx.globalAlpha = 0.5; ctx.strokeStyle = detailColor; ctx.lineWidth = 4;
         const size = pattern === 'tiles' ? 128 : 64;
         for(let i=0; i<512; i+=size) { ctx.strokeRect(0, i, 512, size); ctx.strokeRect(i, 0, size, 512); }
     }
@@ -526,48 +526,70 @@ function createTexture(baseColor, detailColor, pattern) {
 }
 
 function buildMapGeometries() {
-    let fMat, wMat, bMat;
+    let fMat, wMat, bMat, trimMat;
     
     if(selectedMap === 'dust2') {
         fMat = new THREE.MeshStandardMaterial({ map: createTexture('#c9a87d', '#8c704c', 'sand'), roughness: 1.0 });
-        wMat = new THREE.MeshStandardMaterial({ map: createTexture('#bdab84', '#8c7d5c', 'grid'), roughness: 0.9 });
-        bMat = new THREE.MeshStandardMaterial({ map: createTexture('#735336', '#47311d', 'grid'), roughness: 0.8 });
+        wMat = new THREE.MeshStandardMaterial({ map: createTexture('#d6c29a', '#9c8861', 'grid'), roughness: 0.9 });
+        bMat = new THREE.MeshStandardMaterial({ map: createTexture('#8c6747', '#543d28', 'grid'), roughness: 0.8 });
     } else if(selectedMap === 'mirage') {
-        fMat = new THREE.MeshStandardMaterial({ map: createTexture('#8d918c', '#5e615e', 'sand'), roughness: 0.9 });
-        wMat = new THREE.MeshStandardMaterial({ map: createTexture('#b09476', '#876c52', 'grid'), roughness: 0.9 });
-        bMat = new THREE.MeshStandardMaterial({ color: 0x4a6582, roughness: 0.6 });
+        fMat = new THREE.MeshStandardMaterial({ map: createTexture('#b09b7b', '#7a6a52', 'sand'), roughness: 0.9 });
+        wMat = new THREE.MeshStandardMaterial({ map: createTexture('#d4c3a7', '#9e8e75', 'grid'), roughness: 0.8 });
+        bMat = new THREE.MeshStandardMaterial({ color: 0x5a7694, roughness: 0.6 });
     } else if(selectedMap === 'inferno') {
-        fMat = new THREE.MeshStandardMaterial({ map: createTexture('#545454', '#383838', 'tiles'), roughness: 0.8 });
-        wMat = new THREE.MeshStandardMaterial({ map: createTexture('#9e4635', '#612a1f', 'grid'), roughness: 0.9 });
-        bMat = new THREE.MeshStandardMaterial({ color: 0x6e8774, roughness: 0.7 });
+        fMat = new THREE.MeshStandardMaterial({ map: createTexture('#6e6e6e', '#474747', 'tiles'), roughness: 0.8 });
+        wMat = new THREE.MeshStandardMaterial({ map: createTexture('#a84b38', '#6b2d22', 'grid'), roughness: 0.9 });
+        bMat = new THREE.MeshStandardMaterial({ color: 0x7c9683, roughness: 0.7 });
     } else { 
-        fMat = new THREE.MeshStandardMaterial({ map: createTexture('#4a5159', '#2a2f36', 'tiles'), roughness: 0.6, metalness: 0.2 });
-        wMat = new THREE.MeshStandardMaterial({ map: createTexture('#c0c9d4', '#8c959e', 'grid'), roughness: 0.7 });
-        bMat = new THREE.MeshStandardMaterial({ color: 0x3d7cc4, metalness: 0.4, roughness: 0.5 });
+        fMat = new THREE.MeshStandardMaterial({ map: createTexture('#33383d', '#1f2226', 'asphalt'), roughness: 0.7 });
+        wMat = new THREE.MeshStandardMaterial({ map: createTexture('#a2adb8', '#737f8a', 'grid'), roughness: 0.7 });
+        bMat = new THREE.MeshStandardMaterial({ color: 0x427aa1, metalness: 0.3, roughness: 0.5 });
     }
 
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(360, 360), fMat);
+    // Chão Principal da Cidade (Ruas e Calçadas)
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), fMat);
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 
-    createBlock(0, 10, -180, 360, 20, 4, wMat); 
-    createBlock(0, 10, 180, 360, 20, 4, wMat);
-    createBlock(-180, 10, 0, 4, 20, 360, wMat); 
-    createBlock(180, 10, 0, 4, 20, 360, wMat);
+    // Muros delimitadores externos (Bordas da cidade)
+    createBlock(0, 12, -200, 400, 24, 4, wMat); 
+    createBlock(0, 12, 200, 400, 24, 4, wMat);
+    createBlock(-200, 12, 0, 4, 24, 400, wMat); 
+    createBlock(200, 12, 0, 4, 24, 400, wMat);
 
-    createBuildingWithWindows(-70, 70, 40, 16, 40, wMat);
-    createBuildingWithWindows(70, -70, 40, 16, 40, wMat);
-    createBuildingWithWindows(-70, -70, 35, 12, 35, bMat);
-    createBuildingWithWindows(70, 70, 35, 12, 35, bMat);
-    createBuildingWithWindows(0, 100, 50, 18, 25, wMat);
-    createBuildingWithWindows(0, -100, 50, 18, 25, wMat);
+    // GERADOR DE PRÉDIOS ENTERÁVEIS (Blocos urbanos reais com ruas e portas abertas)
+    const cityLayout = [
+        {x: -90, z: 90, w: 50, d: 50, h: 28, mat: wMat},
+        {x: 90, z: 90, w: 50, d: 50, h: 32, mat: bMat},
+        {x: -90, z: -90, w: 50, d: 50, h: 26, mat: bMat},
+        {x: 90, z: -90, w: 50, d: 50, h: 30, mat: wMat},
+        {x: 0, z: 120, w: 60, d: 40, h: 35, mat: wMat},
+        {x: 0, z: -120, w: 60, d: 40, h: 35, mat: bMat},
+        {x: -130, z: 0, w: 40, d: 60, h: 25, mat: bMat},
+        {x: 130, z: 0, w: 40, d: 60, h: 25, mat: wMat}
+    ];
+
+    cityLayout.forEach(b => {
+        createEnterableBuilding(b.x, b.z, b.w, b.d, b.h, b.mat);
+    });
 }
 
-function createBuildingWithWindows(x, z, width, height, depth, mat) {
+// Cria um prédio com 4 paredes e uma porta frontal aberta para o jogador entrar
+function createEnterableBuilding(x, z, width, depth, height, mat) {
     const wallThick = 2;
-    createBlock(x - width/2 + wallThick/2, height/2, z, wallThick, height, depth, mat);
-    createBlock(x + width/2 - wallThick/2, height/2, z, wallThick, height, depth, mat);
-    createBlock(x, height/2, z - depth/2 + wallThick/2, width, height, wallThick, mat);
-    createBlock(x, height/2, z + depth/2 - wallThick/2, width, height, wallThick, mat);
+    // Parede Fundos
+    createBlock(x, height/2, z - depth/2, width, height, wallThick, mat);
+    // Parede Esquerda
+    createBlock(x - width/2, height/2, z, wallThick, height, depth, mat);
+    // Parede Direita
+    createBlock(x + width/2, height/2, z, wallThick, height, depth, mat);
+    
+    // Paredes Frontais com Vão de Porta no Meio (para o jogador entrar)
+    const doorWidth = 3.5;
+    const sideWidth = (width - doorWidth) / 2;
+    createBlock(x - width/2 + sideWidth/2, height/2, z + depth/2, sideWidth, height, wallThick, mat);
+    createBlock(x + width/2 - sideWidth/2, height/2, z + depth/2, sideWidth, height, wallThick, mat);
+    
+    // Teto / Laje do Prédio
     createBlock(x, height, z, width, 1.5, depth, mat);
 }
 
