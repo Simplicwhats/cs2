@@ -1,13 +1,12 @@
 let gameMode = 'bot';
-let maxClients = 0; // 0 = bot, 1 = 1v1, 2 = 1v1v1
+let maxClients = 0; 
 let peer, isHost = true;
-let hostConns = []; // Host armazena conexões
-let myConn = null;  // Cliente armazena sua conexão pro Host
-let networkPlayers = {}; // Meshes dos outros jogadores
+let hostConns = []; 
+let myConn = null;  
+let networkPlayers = {}; 
 let playerNick = "Striker", selectedMap = "dust2";
 let playerMoney = 800;
 
-// RECUO (RECOIL) BALANCEADO PARA BAIXO - Muito mais realista e controlável
 const weaponsConfig = {
     deagle: { name: "Desert Eagle", damage: 60, fireRate: 350, maxAmmo: 7, totalAmmo: 35, spread: 0.008, recoil: 0.015, price: 700 },
     p90:    { name: "P90", damage: 22, fireRate: 70, maxAmmo: 50, totalAmmo: 100, spread: 0.012, recoil: 0.005, price: 2350 },
@@ -16,7 +15,7 @@ const weaponsConfig = {
     awp:    { name: "AWP", damage: 115, fireRate: 1300, maxAmmo: 5, totalAmmo: 30, spread: 0.001, recoil: 0.030, price: 4750, zoomFov: 20 }
 };
 
-let currentWeapon = 'ak47';
+let currentWeapon = 'deagle';
 let lastShotTime = 0, isAiming = false, pointerLocked = false, buyMenuOpen = false;
 
 const btnStart = document.getElementById('btn-start');
@@ -24,13 +23,11 @@ const container = document.getElementById('canvas-container');
 const pauseScreen = document.getElementById('pause-screen');
 const buyMenu = document.getElementById('buy-menu');
 
-// Pontos de Spawn Seguros baseados nos cantos dos mapas
 const safeSpawns = [
     {x: -80, z: 80}, {x: 80, z: -80}, {x: -80, z: -80}, {x: 80, z: 80},
     {x: 0, z: 90}, {x: 0, z: -90}, {x: 90, z: 0}, {x: -90, z: 0}
 ];
 
-// SETUP DE REDE 1v1 / 1v1v1 (Topologia Estrela)
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('room')) {
     isHost = false; gameMode = 'client'; maxClients = 0;
@@ -64,9 +61,7 @@ function setGameMode(mode) {
 function initHost() {
     const room = Math.random().toString(36).substring(2, 8);
     peer = new Peer(room, { host: '0.peerjs.com', port: 443, path: '/', secure: true });
-    peer.on('open', () => {
-        document.getElementById('lobby-link').value = `${window.location.href.split('?')[0]}?room=${room}`;
-    });
+    peer.on('open', () => { document.getElementById('lobby-link').value = `${window.location.href.split('?')[0]}?room=${room}`; });
     peer.on('connection', (c) => {
         if (hostConns.length >= maxClients) { c.close(); return; }
         hostConns.push(c);
@@ -96,20 +91,12 @@ function updateLobbyStatus() {
 }
 
 function broadcastData(data, excludePeer = null) {
-    if (isHost) {
-        hostConns.forEach(c => { if (c.peer !== excludePeer) c.send(data); });
-    } else if (myConn) {
-        myConn.send(data);
-    }
+    if (isHost) { hostConns.forEach(c => { if (c.peer !== excludePeer) c.send(data); }); } 
+    else if (myConn) { myConn.send(data); }
 }
 
 function handleData(senderId, data) {
-    // Se o Host recebe algo, ele repassa pros outros
-    if (isHost && data.type !== 'hit') {
-        data.id = senderId; // Força ID
-        broadcastData(data, senderId);
-    }
-
+    if (isHost && data.type !== 'hit') { data.id = senderId; broadcastData(data, senderId); }
     const peerId = data.id || senderId;
 
     if (data.type === 'pos_update') {
@@ -118,11 +105,11 @@ function handleData(senderId, data) {
         networkPlayers[peerId].rotation.y = data.ry;
     }
     if (data.type === 'hit' && data.target === (isHost ? 'host' : peer.id)) {
-        takeDamage(data.dmg);
+        takeDamage(data.dmg, new THREE.Vector3(data.srcX, data.srcY, data.srcZ));
     }
     if (data.type === 'death') {
         showKillFeed("Jogador Eliminado!");
-        if(isHost) enemyScore++; else myScore++; // Simplificação
+        if(isHost) enemyScore++; else myScore++;
         updateScoreboard();
     }
 }
@@ -144,7 +131,7 @@ let scene, camera, renderer, prevTime = performance.now();
 let moveF = false, moveB = false, moveL = false, moveR = false, canJump = true;
 let isRunning = false, isCrouching = false;
 let velocity = new THREE.Vector3(), currentHeight = 1.8;
-let hp = 100, ammo = 30, reserveAmmo = 90, myScore = 0, enemyScore = 0, isDead = false;
+let hp = 100, ammo = 7, reserveAmmo = 35, myScore = 0, enemyScore = 0, isDead = false;
 let gunGroup, muzzleFlashMesh, muzzleLight, botMesh = null;
 let collidables = [], wallMeshes = [];
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -177,7 +164,7 @@ document.getElementById('btn-resume').addEventListener('click', () => document.b
 document.addEventListener('pointerlockchange', () => {
     pointerLocked = !!document.pointerLockElement;
     if (pointerLocked) { pauseScreen.style.display = 'none'; if(buyMenuOpen) toggleBuyMenu(false); } 
-    else { moveF = moveB = moveL = moveR = false; if(!buyMenuOpen) pauseScreen.style.display = 'flex'; }
+    else { moveF = moveB = moveL = moveR = false; if(!buyMenuOpen && !isDead) pauseScreen.style.display = 'flex'; }
 });
 
 function toggleBuyMenu(show) {
@@ -191,6 +178,7 @@ function toggleBuyMenu(show) {
         if(!isDead) document.body.requestPointerLock();
     }
 }
+
 function buyWeapon(key) {
     const w = weaponsConfig[key];
     if(playerMoney >= w.price) {
@@ -199,6 +187,7 @@ function buyWeapon(key) {
         updateHUD(); build3DWeapon(); toggleBuyMenu(false);
     }
 }
+
 function updateHUD() {
     document.getElementById('hp').innerText = hp;
     document.getElementById('money-display').innerText = `$${playerMoney}`;
@@ -211,7 +200,7 @@ function updateScoreboard() {
     document.getElementById('score-enemy').innerText = enemyScore;
 }
 
-// INICIALIZADOR DA ENGINE COM GRÁFICOS CS2
+// INICIALIZADOR DA ENGINE
 function initGameEngine() {
     scene = new THREE.Scene();
     
@@ -224,17 +213,12 @@ function initGameEngine() {
     scene.fog = new THREE.FogExp2(bgColor, 0.005);
 
     camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.copy(getSafeSpawn(null)); // Spawn inteligente pra começar
+    camera.position.copy(getSafeSpawn(null)); 
 
-    // LUZ GLOBAL MELHORADA (Hemisphere Light + Directional com alta resolução)
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
-    scene.add(ambientLight);
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444455, 0.6);
-    hemiLight.position.set(0, 100, 0);
-    scene.add(hemiLight);
-    const dirLight = new THREE.DirectionalLight(0xfffaee, 1.5);
-    dirLight.position.set(60, 150, 40);
-    dirLight.castShadow = true;
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); scene.add(ambientLight);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444455, 0.7); hemiLight.position.set(0, 100, 0); scene.add(hemiLight);
+    const dirLight = new THREE.DirectionalLight(0xfffaee, 1.3);
+    dirLight.position.set(60, 150, 40); dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048;
     scene.add(dirLight);
 
@@ -251,18 +235,16 @@ function initGameEngine() {
     camera.add(gunGroup); scene.add(camera);
     build3DWeapon();
 
-    // RENDERIZADOR CS2 (ToneMapping Filmic e Srgb)
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    // MELHORIA GRÁFICA MÁXIMA AQUI:
     renderer.outputEncoding = THREE.sRGBEncoding;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.1; 
     container.appendChild(renderer.domElement);
 
-    // CONTROLES DE TECLADO MOUSE
+    // CONTROLES
     document.addEventListener('mousemove', (e) => {
         if (!pointerLocked || isDead || buyMenuOpen) return;
         const sens = isAiming ? 0.0006 : 0.0015;
@@ -308,21 +290,17 @@ function initGameEngine() {
     document.addEventListener('mouseup', (e) => { if (e.button === 2) setAim(false); });
 }
 
-// CÁLCULO DE SPAWN SEGURO (Evita nascer dentro de caixas ou no inimigo)
 function getSafeSpawn(avoidPos) {
     let bestPoint = safeSpawns[0];
     let attempts = 0;
     while(attempts < 10) {
         let pt = safeSpawns[Math.floor(Math.random() * safeSpawns.length)];
-        if(!avoidPos || avoidPos.distanceTo(new THREE.Vector3(pt.x, 1.8, pt.z)) > 40) {
-            bestPoint = pt; break;
-        }
+        if(!avoidPos || avoidPos.distanceTo(new THREE.Vector3(pt.x, 1.8, pt.z)) > 40) { bestPoint = pt; break; }
         attempts++;
     }
     return new THREE.Vector3(bestPoint.x, 1.8, bestPoint.z);
 }
 
-// GERADOR DE TEXTURAS MELHORADO
 function createTexture(baseColor, detailColor, pattern) {
     const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
@@ -342,7 +320,6 @@ function createTexture(baseColor, detailColor, pattern) {
     return tex;
 }
 
-// 4 MAPAS DIFERENTES EM GEOMETRIA
 function buildMapGeometries() {
     let fMat, wMat, bMat;
     
@@ -358,7 +335,7 @@ function buildMapGeometries() {
         fMat = new THREE.MeshStandardMaterial({ map: createTexture('#545454', '#383838', 'tiles'), roughness: 0.8 });
         wMat = new THREE.MeshStandardMaterial({ map: createTexture('#9e4635', '#612a1f', 'grid'), roughness: 0.9 });
         bMat = new THREE.MeshStandardMaterial({ color: 0x6e8774, roughness: 0.7 });
-    } else { // nuke
+    } else { 
         fMat = new THREE.MeshStandardMaterial({ map: createTexture('#4a5159', '#2a2f36', 'tiles'), roughness: 0.6, metalness: 0.2 });
         wMat = new THREE.MeshStandardMaterial({ map: createTexture('#c0c9d4', '#8c959e', 'grid'), roughness: 0.7 });
         bMat = new THREE.MeshStandardMaterial({ color: 0x3d7cc4, metalness: 0.4, roughness: 0.5 });
@@ -367,32 +344,26 @@ function buildMapGeometries() {
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(240, 240), fMat);
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 
-    // PAREDES LIMITES
     createBlock(0, 5, -120, 240, 10, 2, wMat); createBlock(0, 5, 120, 240, 10, 2, wMat);
     createBlock(-120, 5, 0, 2, 10, 240, wMat); createBlock(120, 5, 0, 2, 10, 240, wMat);
 
-    // LAYOUTS ÚNICOS POR MAPA
     if(selectedMap === 'dust2') {
-        createBlock(0, 4, 0, 24, 8, 24, wMat); // Meio gigantão
-        createBlock(-40, 3, 40, 10, 6, 10, bMat); createBlock(40, 3, -40, 10, 6, 10, bMat); // Caixas duplo
+        createBlock(0, 4, 0, 24, 8, 24, wMat); 
+        createBlock(-40, 3, 40, 10, 6, 10, bMat); createBlock(40, 3, -40, 10, 6, 10, bMat); 
         createBlock(-20, 2, -60, 6, 4, 16, bMat); createBlock(20, 2, 60, 6, 4, 16, bMat);
     } 
     else if (selectedMap === 'mirage') {
-        createBlock(-30, 4, 0, 10, 10, 40, wMat); // Parede meio esq
-        createBlock(30, 4, 0, 10, 10, 40, wMat); // Parede meio dir
-        createBlock(0, 2, 0, 15, 4, 15, bMat); // Centro baixo
+        createBlock(-30, 4, 0, 10, 10, 40, wMat); createBlock(30, 4, 0, 10, 10, 40, wMat); 
+        createBlock(0, 2, 0, 15, 4, 15, bMat); 
         createBlock(-60, 3, 50, 12, 6, 12, bMat); createBlock(60, 3, -50, 12, 6, 12, bMat);
     }
     else if (selectedMap === 'inferno') {
-        createBlock(0, 4, -40, 80, 8, 10, wMat); // Blocos longitudinais
-        createBlock(0, 4, 40, 80, 8, 10, wMat);
-        createBlock(-40, 4, 0, 10, 8, 60, wMat);
-        createBlock(40, 4, 0, 10, 8, 60, wMat);
-        createBlock(0, 2.5, 0, 8, 5, 8, bMat); // Chafariz meio
+        createBlock(0, 4, -40, 80, 8, 10, wMat); createBlock(0, 4, 40, 80, 8, 10, wMat);
+        createBlock(-40, 4, 0, 10, 8, 60, wMat); createBlock(40, 4, 0, 10, 8, 60, wMat);
+        createBlock(0, 2.5, 0, 8, 5, 8, bMat); 
     }
-    else { // Nuke
-        createBlock(0, 12, 0, 40, 24, 40, wMat); // Prédio Gigante Centro
-        // Buracos nas paredes
+    else { 
+        createBlock(0, 12, 0, 40, 24, 40, wMat); 
         createBlock(-60, 4, 0, 40, 8, 10, bMat); createBlock(60, 4, 0, 40, 8, 10, bMat);
         createBlock(0, 3, 60, 10, 6, 40, bMat); createBlock(0, 3, -60, 10, 6, 40, bMat);
     }
@@ -402,8 +373,8 @@ function createBlock(x, y, z, w, h, d, mat) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
     mesh.position.set(x, y, z); mesh.castShadow = true; mesh.receiveShadow = true;
     scene.add(mesh);
-    collidables.push(new THREE.Box3().setFromObject(mesh)); // Física
-    wallMeshes.push(mesh); // Raycast de Tiros
+    collidables.push(new THREE.Box3().setFromObject(mesh)); 
+    wallMeshes.push(mesh); 
 }
 
 function build3DWeapon() {
@@ -430,6 +401,15 @@ function build3DWeapon() {
         gunGroup.add(body, barrel);
     }
 
+    // Adiciona o braço/mão do jogador na arma para melhorar o gráfico
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.6 });
+    const sleeveMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.9 });
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.2), sleeveMat);
+    arm.rotation.x = Math.PI / 2; arm.position.set(-0.03, -0.05, 0.1);
+    const hand = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.03), skinMat);
+    hand.position.set(-0.02, -0.01, -0.05);
+    gunGroup.add(arm, hand);
+
     muzzleFlashMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0, depthWrite: false }));
     muzzleFlashMesh.position.set(0, 0.01, barrelOffsetZ);
     muzzleLight = new THREE.PointLight(0xffaa00, 0, 8);
@@ -452,15 +432,13 @@ function shoot() {
 
     lastShotTime = now; ammo--; updateHUD();
 
-    // Visual Flash & Coice Suave
     gunGroup.position.z += 0.05; setTimeout(() => gunGroup.position.z -= 0.05, 50);
     muzzleFlashMesh.material.opacity = 0.8; muzzleFlashMesh.rotation.z = Math.random() * Math.PI; muzzleLight.intensity = 2.0;
     setTimeout(() => { muzzleFlashMesh.material.opacity = 0; muzzleLight.intensity = 0; }, 40);
 
-    // RECUO APLICADO CUIDADOSAMENTE
     recoilOffset += cfg.recoil;
     cameraEuler.x += cfg.recoil; 
-    cameraEuler.y += (Math.random() - 0.5) * (cfg.recoil * 0.4); // Tremor lateral pequeno
+    cameraEuler.y += (Math.random() - 0.5) * (cfg.recoil * 0.4); 
     camera.quaternion.setFromEuler(cameraEuler);
 
     const ray = new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2(0,0), camera);
@@ -479,15 +457,14 @@ function shoot() {
                 myScore++; playerMoney += 300; updateHUD(); updateScoreboard();
                 showKillFeed("+ $300 (Eliminação)");
                 botData.hp = 100;
-                botData.pos.copy(getSafeSpawn(camera.position)); // NASCE LONGE SEGURAMENTE
+                botData.pos.copy(getSafeSpawn(camera.position)); 
                 botMesh.position.copy(botData.pos);
             }
         } 
         else if (gameMode !== 'bot') {
-            // Em rede, checa se acertou o mesh de algum player
             for (let id in networkPlayers) {
                 if (hit.object.parent === networkPlayers[id] || hit.object === networkPlayers[id]) {
-                    broadcastData({ type: 'hit', target: id, dmg: cfg.damage });
+                    broadcastData({ type: 'hit', target: id, dmg: cfg.damage, srcX: camera.position.x, srcY: camera.position.y, srcZ: camera.position.z });
                     hitPlayer = true; break;
                 }
             }
@@ -501,25 +478,61 @@ function shoot() {
     }
 }
 
-function takeDamage(dmg) {
+// SISTEMA DE DANO REFEITO COM INDICADOR DE IMPACTO E REINÍCIO DE RODADA
+function takeDamage(dmg, sourcePos) {
     if (isDead) return;
     hp -= dmg;
+    
     document.getElementById('damage-overlay').style.boxShadow = "inset 0 0 200px rgba(255, 0, 0, 0.6)";
     setTimeout(() => document.getElementById('damage-overlay').style.boxShadow = "inset 0 0 150px rgba(255,0,0,0)", 150);
+    
+    // Calcula o ângulo do hit indicator
+    if(sourcePos) {
+        const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir); camDir.y = 0; camDir.normalize();
+        const toHit = new THREE.Vector3().subVectors(sourcePos, camera.position); toHit.y = 0; toHit.normalize();
+        let angle = Math.atan2(camDir.clone().cross(toHit).y, camDir.dot(toHit));
+        const deg = (angle * (180 / Math.PI)) * -1;
+        
+        const ind = document.getElementById('damage-indicator');
+        ind.style.transform = `translate(-50%, -50%) rotate(${deg}deg)`;
+        ind.style.opacity = 1;
+        setTimeout(() => ind.style.opacity = 0, 1500);
+    }
     
     if (hp <= 0) {
         hp = 0; isDead = true;
         if(gameMode !== 'bot') broadcastData({ type: 'death' });
-        else { enemyScore++; updateScoreboard(); }
+        else { 
+            enemyScore++; updateScoreboard(); 
+            const msg = document.getElementById('round-message');
+            msg.innerText = "BOT VENCEU A RODADA";
+            msg.style.display = 'block';
+        }
         document.exitPointerLock();
-        setTimeout(() => {
-            hp = 100; isDead = false; ammo = weaponsConfig[currentWeapon].maxAmmo;
-            updateHUD();
-            camera.position.copy(getSafeSpawn(null)); // Volta num lugar seguro
-            document.body.requestPointerLock();
-        }, 3000);
+        setTimeout(restartRound, 4000);
     }
     updateHUD();
+}
+
+// SISTEMA DE REINÍCIO DO ROUND (Como no CS2)
+function restartRound() {
+    hp = 100; isDead = false;
+    playerMoney = 800; // Reset na economia
+    currentWeapon = 'deagle'; // Volta para a pistola inicial
+    ammo = weaponsConfig.deagle.maxAmmo; reserveAmmo = weaponsConfig.deagle.totalAmmo;
+    
+    updateHUD();
+    build3DWeapon();
+    camera.position.copy(getSafeSpawn(null)); 
+    
+    if (gameMode === 'bot' && botMesh) {
+        botData.hp = 100;
+        botData.pos.copy(getSafeSpawn(camera.position));
+        botMesh.position.copy(botData.pos);
+    }
+    
+    document.getElementById('round-message').style.display = 'none';
+    document.body.requestPointerLock();
 }
 
 function reload() {
@@ -540,7 +553,7 @@ function showKillFeed(txt) {
     setTimeout(() => feed.style.display='none', 2000);
 }
 
-// IA DO BOT CORRIGIDA (SEM ENTRAR EM CAIXAS)
+// BOT AGORA DÁ STRAFE (ANDA DE LADO) PARA NÃO FICAR PARADO ENQUANTO ATIRA
 function updateBotLogic(delta, time) {
     if (gameMode !== 'bot' || !botMesh || isDead) return;
     const dist = botMesh.position.distanceTo(camera.position);
@@ -554,18 +567,26 @@ function updateBotLogic(delta, time) {
     botMesh.lookAt(camera.position.x, botMesh.position.y, camera.position.z);
 
     if (hasLOS && dist < 45) {
-        if (time - botData.lastShot > 600) { botData.lastShot = time; if (Math.random() > 0.4) takeDamage(14); }
+        // Atirando
+        if (time - botData.lastShot > 600) { botData.lastShot = time; if (Math.random() > 0.4) takeDamage(14, botMesh.position); }
+        
+        // Strafing Esquerda/Direita para não ficar parado
+        const strafeVetor = new THREE.Vector3().crossVectors(dirToPlayer, new THREE.Vector3(0,1,0)).normalize();
+        const oldPos = botMesh.position.clone();
+        botMesh.position.addScaledVector(strafeVetor, 3.5 * botData.strafeDir * delta);
+        
+        botBox.setFromCenterAndSize(botMesh.position, new THREE.Vector3(1.2, 1.8, 1.2));
+        for (let box of collidables) {
+            if (botBox.intersectsBox(box)) { botMesh.position.copy(oldPos); botData.strafeDir *= -1; break; }
+        }
+        if (Math.random() < 0.01) botData.strafeDir *= -1; // Muda de direção aleatoriamente
     } else {
         const oldPos = botMesh.position.clone();
-        
-        // Aplica Movimentação (Frente ou Desvio Lateral)
         const moveVetor = new THREE.Vector3();
-        botMesh.getWorldDirection(moveVetor); 
-        moveVetor.y = 0; moveVetor.normalize();
+        botMesh.getWorldDirection(moveVetor); moveVetor.y = 0; moveVetor.normalize();
 
-        botMesh.position.addScaledVector(moveVetor, 7.0 * delta); // Move frente
+        botMesh.position.addScaledVector(moveVetor, 7.0 * delta); 
         
-        // CHECK DE COLISÃO
         botBox.setFromCenterAndSize(botMesh.position, new THREE.Vector3(1.2, 1.8, 1.2));
         let collides = false;
         for (let box of collidables) {
@@ -573,16 +594,14 @@ function updateBotLogic(delta, time) {
         }
         
         if (collides) {
-            botMesh.position.copy(oldPos); // Reverte movimento instantaneamente (não entra na caixa)
-            // Ao bater na parede, o bot rotaciona seu corpo ligeiramente e inverte o "StafeDir"
+            botMesh.position.copy(oldPos);
             botMesh.translateX(1.0 * botData.strafeDir); 
-            botData.strafeDir *= -1; // Na proxima batida ele tenta pro outro lado
+            botData.strafeDir *= -1;
         }
     }
     botData.pos.copy(botMesh.position);
 }
 
-// LOOP ENGINE
 function animate() {
     requestAnimationFrame(animate);
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
@@ -612,7 +631,6 @@ function animate() {
         }
         if (camera.position.y < currentHeight) { camera.position.y = currentHeight; velocity.y = 0; canJump = true; }
 
-        // Recuo Recovery Mais Rápido
         if (recoilOffset > 0 && (time - lastShotTime > 100)) {
             const recAmt = Math.min(recoilOffset, 2.5 * delta);
             cameraEuler.x -= recAmt; recoilOffset -= recAmt;
