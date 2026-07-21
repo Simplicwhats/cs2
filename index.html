@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WEB CS 2 - GLOBAL UPDATE</title>
+    <title>WEB CS 2 - TACTICAL UPDATE</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
@@ -44,12 +44,13 @@
         </div>
     </div>
 
-    <!-- PAUSA -->
+    <!-- MENSAGENS DE JOGO -->
     <div id="pause-screen">
         <h2>PARTIDA PAUSADA</h2>
         <p>Aperte <b>ESC</b> para abrir o menu ou clique abaixo para voltar.</p>
         <button id="btn-resume">VOLTAR AO JOGO</button>
     </div>
+    <div id="round-message">BOT VENCEU A RODADA</div>
 
     <!-- MENU DE COMPRA (B) -->
     <div id="buy-menu" class="hidden">
@@ -103,10 +104,14 @@
 
     <div id="buy-hint">Pressione <b>[B]</b> para Comprar Armas</div>
     <div id="crosshair"></div>
+    
+    <!-- EFEITOS VISUAIS (GRÁFICOS E DANO) -->
+    <div id="vignette"></div>
+    <div id="damage-overlay"></div>
+    <div id="damage-indicator"></div>
+    
     <div id="kill-feed"></div>
     <div id="canvas-container"></div>
-    
-    <div id="damage-overlay"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
