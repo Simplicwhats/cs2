@@ -1,120 +1,116 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WEB CS 2 - MULTIPLAYER SYNC</title>
-    <link rel="icon" href="data:,">
+    <title>FPS Web Game 3D</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <!-- PeerJS para Multiplayer -->
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <!-- Three.js para Gráficos 3D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
-    <div id="lobby-container">
-        <div class="lobby-panel">
-            <div class="cs-logo">CS2 WEB<span>.js</span></div>
-            <h1>GLOBAL OFFENSIVE ENGINE</h1>
-            
-            <div class="input-group">
-                <label>NICKNAME</label>
-                <input type="text" id="player-nick" class="nick-input" value="Striker" maxlength="15">
-            </div>
 
-            <div class="input-group">
-                <label>MAPA TÁTICO</label>
-                <select id="map-select" class="custom-select">
-                    <option value="dust2">Dust II (Deserto)</option>
-                    <option value="mirage">Mirage (Urbano Ocre)</option>
-                    <option value="inferno">Inferno (Tijolos & Vielas)</option>
-                    <option value="nuke">Nuke (Complexo Industrial)</option>
-                </select>
-            </div>
-            
-            <div class="mode-selection">
-                <button class="mode-btn active" id="mode-bot" onclick="setGameMode('bot')">TREINO (BOT)</button>
-                <button class="mode-btn" id="mode-1v1" onclick="setGameMode('1v1')">X1 (2 JOGADORES)</button>
-                <button class="mode-btn" id="mode-1v1v1" onclick="setGameMode('1v1v1')">FREE FOR ALL (3 JOGADORES)</button>
-            </div>
-
-            <div class="link-section" id="net-link-section" style="display:none;">
-                <label id="net-status-label" style="color:#5bc0de; display:block; margin-bottom:5px;">Aguardando conexões (0/2)</label>
-                <input type="text" id="lobby-link" readonly onclick="this.select(); document.execCommand('copy'); alert('Link de convite copiado!');">
-            </div>
-
-            <button id="btn-start" class="start-btn">INICIAR PARTIDA</button>
-        </div>
-    </div>
-
-    <!-- MENSAGENS DE JOGO -->
-    <div id="pause-screen">
-        <h2>PARTIDA PAUSADA</h2>
-        <p>Aperte <b>ESC</b> para abrir o menu ou clique abaixo para voltar.</p>
-        <button id="btn-resume">VOLTAR AO JOGO</button>
-    </div>
-    <div id="round-message">VOCÊ FOI ELIMINADO</div>
-
-    <!-- MENU DE COMPRA (B) -->
-    <div id="buy-menu" class="hidden">
-        <div class="buy-header">
-            <h2>MERCADO NEGRO</h2>
-            <div class="buy-money">SALDO: <span id="buy-money-display" class="money-text">$16000</span></div>
-        </div>
-        <div class="buy-grid">
-            <div class="buy-column">
-                <h3>PISTOLAS</h3>
-                <button class="buy-item" onclick="buyWeapon('deagle')"><span>Desert Eagle</span><span class="item-price">$700</span></button>
-            </div>
-            <div class="buy-column">
-                <h3>PESADAS/SMG</h3>
-                <button class="buy-item" onclick="buyWeapon('p90')"><span>P90</span><span class="item-price">$2350</span></button>
-            </div>
-            <div class="buy-column">
-                <h3>FUZIS</h3>
-                <button class="buy-item" onclick="buyWeapon('ak47')"><span>AK-47</span><span class="item-price">$2700</span></button>
-                <button class="buy-item" onclick="buyWeapon('m4a4')"><span>M4A4</span><span class="item-price">$3100</span></button>
-            </div>
-            <div class="buy-column">
-                <h3>SNIPER</h3>
-                <button class="buy-item" onclick="buyWeapon('awp')"><span>AWP</span><span class="item-price">$4750</span></button>
-            </div>
-        </div>
-    </div>
-
-    <!-- HUD IN-GAME -->
-    <div id="scoreboard">
-        <div class="team-ct"><span id="display-my-name">VOCÊ</span> <span id="score-player">0</span></div>
-        <div class="vs-badge">VS</div>
-        <div class="team-tr"><span id="score-enemy">0</span> <span id="display-enemy-name">OPONENTES</span></div>
-    </div>
-
-    <div id="hud-bottom-left" class="hud-panel">
-        <div class="hud-icon">♥</div>
-        <div class="hud-value hp-val" id="hp">100</div>
-    </div>
-
-    <div id="hud-bottom-right" class="hud-panel">
-        <div class="hud-ammo-wrap">
-            <span class="hud-value" id="ammo">7</span>
-            <span class="hud-reserve" id="reserve-ammo">/ 35</span>
-        </div>
-        <div class="hud-weapon-info">
-            <div id="weapon-display">DESERT EAGLE</div>
-            <div class="money-text" id="money-display">$800</div>
-        </div>
-    </div>
-
-    <div id="buy-hint">Pressione <b>[B]</b> para Comprar Armas</div>
-    <div id="crosshair"></div>
-    
-    <!-- EFEITOS VISUAIS -->
-    <div id="vignette"></div>
-    <div id="damage-overlay"></div>
-    <div id="damage-indicator"></div>
-    
-    <div id="kill-feed"></div>
+    <!-- Container do Jogo 3D -->
     <div id="canvas-container"></div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <!-- Mira -->
+    <div id="crosshair">+</div>
+
+    <!-- Efeito de Dano na Tela -->
+    <div id="damage-overlay"></div>
+    <div id="damage-indicator"></div>
+
+    <!-- Placar Superior -->
+    <div id="scoreboard" style="display: none;">
+        <span id="score-player-name">JOGADOR</span>: <span id="score-player">0</span> 
+        &nbsp;|&nbsp; 
+        <span id="score-enemy">0</span> : <span id="score-enemy-name">INIMIGOS</span>
+    </div>
+
+    <!-- HUD Inferior Esquerdo (HP e Dinheiro) -->
+    <div id="hud-bottom-left" class="hud-panel" style="display: none;">
+        <div>HP: <span id="hp">100</span></div>
+        <div>Dinheiro: <span id="money-display">$5000</span></div>
+    </div>
+
+    <!-- HUD Inferior Direito (Munição e Arma) -->
+    <div id="hud-bottom-right" class="hud-panel" style="display: none;">
+        <div id="weapon-display">Desert Eagle</div>
+        <div class="ammo-container">
+            <span id="ammo">7</span><span id="reserve-ammo">/ 35</span>
+        </div>
+    </div>
+
+    <!-- Dica da Loja -->
+    <div id="buy-hint" style="display: none;">Pressione [B] para abrir a Loja</div>
+
+    <!-- Mensagens de Rodada / Morte -->
+    <div id="round-message"></div>
+    <div id="kill-feed"></div>
+
+    <!-- Menu de Pausa -->
+    <div id="pause-screen" style="display: none;">
+        <h1>JOGO PAUSADO</h1>
+        <p>Clique na tela ou pressione o botão abaixo para voltar</p>
+        <button id="btn-resume">Retornar ao Jogo</button>
+    </div>
+
+    <!-- Menu de Compra (Loja) -->
+    <div id="buy-menu" class="hidden">
+        <h2>LOJA DE EQUIPAMENTOS</h2>
+        <p>Seu Saldo: <span id="buy-money-display">$5000</span></p>
+        <div class="buy-grid">
+            <button onclick="buyWeapon('deagle')">Desert Eagle <br><span>$700</span></button>
+            <button onclick="buyWeapon('p90')">P90 <br><span>$2350</span></button>
+            <button onclick="buyWeapon('ak47')">AK-47 <br><span>$2700</span></button>
+            <button onclick="buyWeapon('m4a4')">M4A4 <br><span>$3100</span></button>
+            <button onclick="buyWeapon('awp')">AWP <br><span>$4750</span></button>
+            <button onclick="buyWeapon('armor')">Colete Balístico <br><span>$650</span></button>
+            <button onclick="buyWeapon('helmet')">Capacete <br><span>$350</span></button>
+            <button onclick="buyWeapon('grenade')">Granada HE <br><span>$300</span></button>
+        </div>
+        <button id="btn-close-buy" onclick="toggleBuyMenu(false)">Fechar Loja [B]</button>
+    </div>
+
+    <!-- Menu Inicial / Lobby -->
+    <div id="lobby-container">
+        <div class="lobby-box">
+            <h1>FPS TÁTICO 3D</h1>
+            
+            <div class="input-group">
+                <label>Seu Nick:</label>
+                <input type="text" id="player-nick" value="Striker">
+            </div>
+
+            <div class="input-group">
+                <label>Escolha o Mapa:</label>
+                <select id="map-select">
+                    <option value="dust2">Dust II (Deserto)</option>
+                    <option value="mirage">Mirage (Cidade)</option>
+                    <option value="inferno">Inferno (Vila)</option>
+                    <option value="nuke">Nuke (Industrial)</option>
+                </select>
+            </div>
+
+            <div class="mode-select">
+                <button class="mode-btn active" id="mode-bot" onclick="setGameMode('bot')">Modo Treino (5 Bots)</button>
+                <button class="mode-btn" id="mode-1v1" onclick="setGameMode('1v1')">1v1 (Online)</button>
+                <button class="mode-btn" id="mode-2v2" onclick="setGameMode('2v2')">2v2 (Online)</button>
+            </div>
+
+            <div id="net-link-section" style="display: none;">
+                <label>Link da Sala:</label>
+                <input type="text" id="lobby-link" readonly>
+                <p id="net-status-label">Aguardando conexão...</p>
+            </div>
+
+            <button id="btn-start" class="primary-btn">INICIAR PARTIDA</button>
+        </div>
+    </div>
+
+    <!-- Script Principal do Jogo -->
     <script src="script.js"></script>
 </body>
 </html>
