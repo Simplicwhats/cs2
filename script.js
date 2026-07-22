@@ -669,7 +669,7 @@ function buildMapGeometries() {
     }
 
     const hexFloor = '#' + fColor.toString(16).padStart(6, '0');
-    const fMat = new THREE.MeshStandardMaterial({ map: createWallTexture('#' + fColor.toString(16), "rgba(0,0,0,0.15)", 'grid'), roughness: 0.8 });
+   const fMat = new THREE.MeshStandardMaterial({ map: createWallTexture('#' + fColor.toString(16), "rgba(0,0,0,0.15)", 'grid'), roughness: 0.8 });
     const wMat = new THREE.MeshStandardMaterial({ map: createWallTexture(wColor, "rgba(0,0,0,0.2)", 'brick'), roughness: 0.7 });
     const bMat = new THREE.MeshStandardMaterial({ map: createWallTexture(bColor, "rgba(0,0,0,0.25)", 'grid'), roughness: 0.7 });
     const trimMat = new THREE.MeshStandardMaterial({ color: trimColor, roughness: 0.5 });
@@ -728,17 +728,17 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     const wallT = 1.2;
     const floorH = 8.0; 
 
-    // Paredes de contorno
+    // Paredes laterais e traseira
     createBlock(x, height/2, z - depth/2, width, height, wallT, mat); 
     createBlock(x - width/2, height/2, z, wallT, height, depth, mat); 
     createBlock(x + width/2, height/2, z, wallT, height, depth, mat); 
 
-    // Entrada frontal ampla e livre no 2º andar
+    // Frente recortada para livre passagem no portal superior
     createBlock(x - width/3, floorH/2, z + depth/2, width/3, floorH, wallT, mat);
     createBlock(x + width/3, floorH/2, z + depth/2, width/3, floorH, wallT, mat);
     
-    // Moldura no topo sem bloquear a passagem da rampa
-    createBlock(x, height - 1.0, z + depth/2, width, 2.0, wallT, mat);
+    // Viga superior bem alta para nao bater a cabeça ao entrar no 2º andar
+    createBlock(x, height - 0.5, z + depth/2, width, 1.0, wallT, mat);
 
     const winGeo = new THREE.BoxGeometry(0.2, 2.5, 2.0);
     const winLeft = new THREE.Mesh(winGeo, winMat);
@@ -751,6 +751,7 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
 
     createBlock(x, height + 0.5, z, width + 0.5, 1.0, depth + 0.5, trimMat);
 
+    // Piso do 2º Andar
     const floorTile1 = new THREE.Mesh(new THREE.BoxGeometry(width - 2, 0.6, depth - 4), mat);
     floorTile1.position.set(x, floorH, z - 1);
     floorTile1.receiveShadow = true; floorTile1.castShadow = true;
@@ -772,9 +773,9 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
         createBlock(x + (width * 0.3), floorH + 0.8, z + depth/2 + balcDepth/2, 0.4, 1.2, balcDepth, trimMat);
     }
 
-    // Rampa suave de acesso ao 2º andar
+    // Rampa Suave de Acesso (Flagged as Ramp para ignorar na caixa de colisão dura)
     const rampLength = 22; 
-    const rampWidth = 5.5;
+    const rampWidth = 6.0;
     const rampGeo = new THREE.BoxGeometry(rampWidth, 0.4, rampLength);
     const ramp = new THREE.Mesh(rampGeo, trimMat);
     
@@ -783,7 +784,7 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     ramp.rotation.x = angle;
     
     ramp.receiveShadow = true; ramp.castShadow = true;
-    ramp.userData.isRamp = true;
+    ramp.userData.isRamp = true; 
     scene.add(ramp);
     wallMeshes.push(ramp); mapWallMeshes.push(ramp);
 }
@@ -815,7 +816,10 @@ function createBlock(x, y, z, w, h, d, mat) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
     mesh.position.set(x, y, z); mesh.castShadow = true; mesh.receiveShadow = true;
     scene.add(mesh);
-    collidables.push(new THREE.Box3().setFromObject(mesh)); 
+    
+    const box = new THREE.Box3().setFromObject(mesh);
+    box.userData = { mesh: mesh };
+    collidables.push(box); 
     wallMeshes.push(mesh); 
     mapWallMeshes.push(mesh);
 }
@@ -870,7 +874,6 @@ function updateGrenades(delta, time) {
                             const myId = isHost ? 'host' : peer.id;
                             if (typeof playerScores !== 'undefined') playerScores[myId] = (playerScores[myId] || 0) + 1;
                             
-                            // Recompensa de Eliminação (HP + Dinheiro)
                             hp = Math.min(100, hp + 30);
                             playerMoney += 300; updateHUD(); if (typeof updateScoreboard === 'function') updateScoreboard();
                             showKillFeed("+ $300 | +30 HP (Granada HE)");
@@ -980,7 +983,7 @@ function shoot() {
     ray.ray.direction.y += (Math.random() - 0.5) * spr;
 
     let endPoint = ray.ray.at(100, new THREE.Vector3());
-    const hits = ray.intersectObjects(wallMeshes);
+    const hits = ray.intersectObjects(wallMeshes, true);
     let hitPlayer = false;
 
     if (hits.length > 0) {
@@ -995,7 +998,6 @@ function shoot() {
                         const myId = isHost ? 'host' : peer.id;
                         if (typeof playerScores !== 'undefined') playerScores[myId] = (playerScores[myId] || 0) + 1;
                         
-                        // Recupera +30 HP e ganha dinheiro ao matar bot
                         hp = Math.min(100, hp + 30);
                         playerMoney += 300; updateHUD(); if (typeof updateScoreboard === 'function') updateScoreboard();
                         showKillFeed("+ $300 | +30 HP (Eliminação)");
@@ -1116,7 +1118,7 @@ function restartRound() {
     camera.position.copy(getSafeSpawn(null)); 
     
     if (gameMode === 'bot') {
-        spawnBots(8); // Garante 8 bots ao reiniciar a rodada
+        spawnBots(8);
     }
     
     document.body.requestPointerLock();
@@ -1140,7 +1142,7 @@ function showKillFeed(txt) {
     setTimeout(() => feed.style.display='none', 2000);
 }
 
-// CORREÇÃO DOS BOTS: LINHA DE VISÃO REAL E TIRO COM MARGEM DE ERRO
+// CORREÇÃO CRÍTICA DO BOT: LINHA DE VISÃO VERDADEIRA (RECURSIVA)
 function updateBotLogic(delta, time) {
     if (gameMode !== 'bot' || isDead) return;
 
@@ -1156,9 +1158,9 @@ function updateBotLogic(delta, time) {
         let hasLOS = false;
         const dirToPlayer = new THREE.Vector3().subVectors(playerCenter, botEyes).normalize();
         
-        // Raycast de linha de visão
+        // Raycast checando recursivamente todas as paredes e construções
         const ray = new THREE.Raycaster(botEyes, dirToPlayer);
-        const hits = ray.intersectObjects(mapWallMeshes, false);
+        const hits = ray.intersectObjects(mapWallMeshes, true);
         
         if (hits.length === 0 || hits[0].distance >= dist) {
             hasLOS = true;
@@ -1171,7 +1173,6 @@ function updateBotLogic(delta, time) {
                 bot.lastShot = time; 
                 playShootSound(); 
                 
-                // Chance de acerto diminui com a distância
                 const hitChance = Math.max(0.25, 0.85 - (dist / 60));
                 if (Math.random() < hitChance) {
                     takeDamage(15, botEyes); 
@@ -1241,16 +1242,16 @@ function animate() {
         camera.position.x += velocity.x * delta;
         camera.position.z += velocity.z * delta;
 
-        // RAYCAST DE PÉS PARA SUBIR EM RAMPAS E SEGUNDO ANDAR
+        // RAYCAST PARA SUBIR RAMPAS E SUBIR AO SEGUNDO ANDAR
         const rayOrigin = camera.position.clone();
-        const feetRay = new THREE.Raycaster(rayOrigin, new THREE.Vector3(0, -1, 0), 0, currentHeight + 0.8);
-        const feetHits = feetRay.intersectObjects(mapWallMeshes);
+        const feetRay = new THREE.Raycaster(rayOrigin, new THREE.Vector3(0, -1, 0), 0, currentHeight + 1.2);
+        const feetHits = feetRay.intersectObjects(mapWallMeshes, true);
 
         if (feetHits.length > 0) {
             let hitGroundY = feetHits[0].point.y + currentHeight;
             let diffY = hitGroundY - camera.position.y;
 
-            if (diffY > -1.0 && diffY < 1.5) {
+            if (diffY > -1.2 && diffY < 2.0) {
                 camera.position.y = hitGroundY;
                 velocity.y = 0;
                 canJump = true;
@@ -1259,9 +1260,12 @@ function animate() {
             camera.position.y += velocity.y * delta;
         }
 
-        // COLISÃO COM MURAIS E CAIXAS
+        // COLISÃO DO JOGADOR COM PAREDES (IGNORA A RAMPA)
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
         for (let box of collidables) {
+            if (box.userData && box.userData.mesh && box.userData.mesh.userData && box.userData.mesh.userData.isRamp) {
+                continue; // Permite caminhar pela rampa sem travar
+            }
             if (playerBox.intersectsBox(box)) {
                 camera.position.x = oldPos.x;
                 camera.position.z = oldPos.z;
