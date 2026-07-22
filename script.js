@@ -729,21 +729,26 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     const floorH = 8.0; 
     const doorWidth = 6.0;
 
-    // --- TERREO E PAREDES EXTERNAS ---
-    // Parede Traseira
-    createBlock(x, height/2, z - depth/2, width, height, wallT, mat); 
-    // Parede Esquerda
-    createBlock(x - width/2, height/2, z, wallT, height, depth, mat); 
-    // Parede Direita
-    createBlock(x + width/2, height/2, z, wallT, height, depth, mat); 
+    // --- PAREDES EXTERNAS (TÉRREO) ---
+    createBlock(x, height/2, z - depth/2, width, height, wallT, mat); // Traseira
+    createBlock(x - width/2, height/2, z, wallT, height, depth, mat); // Esquerda
+    createBlock(x + width/2, height/2, z, wallT, height, depth, mat); // Direita
 
-    // Parede Frontal com Porta no Térreo (Entrada da casa)
+    // Frente com Porta no Térreo
     const sideWallW = (width - doorWidth) / 2;
     createBlock(x - width/2 + sideWallW/2, floorH/2, z + depth/2, sideWallW, floorH, wallT, mat);
     createBlock(x + width/2 - sideWallW/2, floorH/2, z + depth/2, sideWallW, floorH, wallT, mat);
-    
-    // Parede Frontal do 2º Andar
-    createBlock(x, floorH + (height - floorH)/2, z + depth/2, width, height - floorH, wallT, mat);
+
+    // --- PAREDE FRONTAL DO 2º ANDAR (COM PASSAGEM PARA A SACADA) ---
+    if (addBalcony) {
+        // Se tem sacada, deixa um vão livre de 6 unidades no meio para você passar
+        const upperWallH = height - floorH;
+        createBlock(x - width/2 + sideWallW/2, floorH + upperWallH/2, z + depth/2, sideWallW, upperWallH, wallT, mat);
+        createBlock(x + width/2 - sideWallW/2, floorH + upperWallH/2, z + depth/2, sideWallW, upperWallH, wallT, mat);
+    } else {
+        // Se não tem sacada, fecha a parede normalmente
+        createBlock(x, floorH + (height - floorH)/2, z + depth/2, width, height - floorH, wallT, mat);
+    }
 
     // Janelas decorativas
     const winGeo = new THREE.BoxGeometry(0.2, 2.5, 2.0);
@@ -758,38 +763,36 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     // Moldura do Telhado
     createBlock(x, height + 0.5, z, width + 0.5, 1.0, depth + 0.5, trimMat);
 
-    // --- PISO DO 2º ANDAR COM BURACO AMPLIADO (VÃO DA ESCADA MAIOR) ---
-    // Vão expandido para 16 de profundidade e 7.0 de largura para passagem 100% livre
-    const stairHoleDepth = 16.0; 
-    const stairHoleWidth = 7.0; 
-    
-    // Parte principal do chão do 2º andar (Recuada para dar espaço ao vão ampliado)
-    const mainFloorDepth = depth - stairHoleDepth - 1;
+    // --- PISO DO 2º ANDAR COM VÃO DA ESCADA ---
+    const stairHoleDepth = 18.0; 
+    const stairHoleWidth = 8.0; 
+
+    const mainFloorDepth = depth - stairHoleDepth - 2;
     const floorTile1 = new THREE.Mesh(new THREE.BoxGeometry(width - 2, 0.6, mainFloorDepth), mat);
-    floorTile1.position.set(x, floorH, z + (stairHoleDepth / 2) - 0.5);
+    floorTile1.position.set(x, floorH, z + (stairHoleDepth / 2));
     floorTile1.receiveShadow = true; floorTile1.castShadow = true;
     scene.add(floorTile1);
     collidables.push(new THREE.Box3().setFromObject(floorTile1));
     wallMeshes.push(floorTile1); mapWallMeshes.push(floorTile1);
 
-    // Complemento lateral do chão ao lado do buraco
     const sideFloorWidth = (width - 2) - stairHoleWidth;
-    const floorTile2 = new THREE.Mesh(new THREE.BoxGeometry(sideFloorWidth, 0.6, stairHoleDepth), mat);
-    floorTile2.position.set(x - (stairHoleWidth / 2), floorH, z - (depth / 2) + (stairHoleDepth / 2) + 1);
-    floorTile2.receiveShadow = true; floorTile2.castShadow = true;
-    scene.add(floorTile2);
-    collidables.push(new THREE.Box3().setFromObject(floorTile2));
-    wallMeshes.push(floorTile2); mapWallMeshes.push(floorTile2);
+    if (sideFloorWidth > 0) {
+        const floorTile2 = new THREE.Mesh(new THREE.BoxGeometry(sideFloorWidth, 0.6, stairHoleDepth), mat);
+        floorTile2.position.set(x - (stairHoleWidth / 2), floorH, z - (depth / 2) + (stairHoleDepth / 2) + 1);
+        floorTile2.receiveShadow = true; floorTile2.castShadow = true;
+        scene.add(floorTile2);
+        collidables.push(new THREE.Box3().setFromObject(floorTile2));
+        wallMeshes.push(floorTile2); mapWallMeshes.push(floorTile2);
+    }
 
-    // --- ESCADA / RAMPA INTERNA ---
-    const rampLength = 15; 
-    const rampWidth = 5.0;
+    // --- ESCADA INTERNA ---
+    const rampLength = 16; 
+    const rampWidth = 6.0;
     const rampGeo = new THREE.BoxGeometry(rampWidth, 0.4, rampLength);
     const ramp = new THREE.Mesh(rampGeo, trimMat);
     
-    const angle = Math.atan2(floorH, rampLength - 2);
-    // Posicionada internamente no fundo do prédio, subindo direto para o vão ampliado
-    ramp.position.set(x + (width / 2) - (rampWidth / 2) - 2, (floorH / 2) - 0.2, z - (depth / 2) + (rampLength / 2) + 1.5);
+    const angle = Math.atan2(floorH, rampLength - 3);
+    ramp.position.set(x + (width / 2) - (rampWidth / 2) - 2, (floorH / 2) - 0.2, z - (depth / 2) + (rampLength / 2) + 2);
     ramp.rotation.x = -angle;
     
     ramp.receiveShadow = true; ramp.castShadow = true;
@@ -797,9 +800,10 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     scene.add(ramp);
     wallMeshes.push(ramp); mapWallMeshes.push(ramp);
 
-    // Sacada Externa (Opcional)
+    // --- SACADA EXTERNA ACESSÍVEL ---
     if (addBalcony) {
         const balcDepth = 4.5;
+        // Piso da sacada
         const balconyFloor = new THREE.Mesh(new THREE.BoxGeometry(width * 0.6, 0.5, balcDepth), mat);
         balconyFloor.position.set(x, floorH, z + depth/2 + balcDepth/2);
         balconyFloor.receiveShadow = true; balconyFloor.castShadow = true;
@@ -807,6 +811,7 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
         collidables.push(new THREE.Box3().setFromObject(balconyFloor));
         wallMeshes.push(balconyFloor); mapWallMeshes.push(balconyFloor);
 
+        // Guarda-corpos da sacada (frente e laterais para proteção)
         createBlock(x, floorH + 0.8, z + depth/2 + balcDepth, width * 0.6, 1.2, 0.4, trimMat);
         createBlock(x - (width * 0.3), floorH + 0.8, z + depth/2 + balcDepth/2, 0.4, 1.2, balcDepth, trimMat);
         createBlock(x + (width * 0.3), floorH + 0.8, z + depth/2 + balcDepth/2, 0.4, 1.2, balcDepth, trimMat);
