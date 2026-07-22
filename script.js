@@ -125,7 +125,6 @@ const container = document.getElementById('canvas-container');
 const pauseScreen = document.getElementById('pause-screen');
 const buyMenu = document.getElementById('buy-menu');
 
-// Spawns ampliados e distribuídos estrategicamente
 const safeSpawns = [
     {x: 0, z: 0}, {x: 40, z: 20}, {x: -40, z: -20}, {x: 20, z: -40}, {x: -20, z: 40},
     {x: 80, z: 15}, {x: -80, z: -15}, {x: 15, z: -80}, {x: -15, z: 80},
@@ -138,7 +137,6 @@ function getSafeSpawn(avoidPos) {
     let bestPoint = safeSpawns[0];
     let found = false;
 
-    // Tenta encontrar um ponto não ocupado e longe de avoidPos
     for (let pt of safeSpawns) {
         let testVec = new THREE.Vector3(pt.x, 1.8, pt.z);
         let tooCloseToAvoid = avoidPos && avoidPos.distanceTo(testVec) < 20;
@@ -288,11 +286,11 @@ function createNetworkPlayer(id, nick) {
     if (networkPlayers[id]) return;
     const group = new THREE.Group();
     
-    const matUniform = new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.7 });
-    const matVest = new THREE.MeshStandardMaterial({ color: 0x1a252f, roughness: 0.5 });
-    const matSkin = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.8 });
-    const matHelmet = new THREE.MeshStandardMaterial({ color: 0x34495e, metalness: 0.3, roughness: 0.4 });
-    const matGun = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.3 });
+    const matUniform = new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.6 });
+    const matVest = new THREE.MeshStandardMaterial({ color: 0x1a252f, roughness: 0.4 });
+    const matSkin = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.7 });
+    const matHelmet = new THREE.MeshStandardMaterial({ color: 0x34495e, metalness: 0.4, roughness: 0.3 });
+    const matGun = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.2 });
 
     const legGeo = new THREE.BoxGeometry(0.22, 0.9, 0.25);
     const legLeft = new THREE.Mesh(legGeo, matUniform); legLeft.position.set(-0.13, 0.45, 0); legLeft.castShadow = true;
@@ -467,37 +465,37 @@ function initGameEngine() {
     scene = new THREE.Scene();
     usedSpawns = [];
     
-    let bgColor = 0x87ceeb; // Céu azul padrão suave
-    if(selectedMap === 'mirage') bgColor = 0x729ec2;
-    if(selectedMap === 'inferno') bgColor = 0x4a5a6a;
-    if(selectedMap === 'nuke') bgColor = 0x3d4853;
+    let bgColor = 0x87ceeb;
+    if(selectedMap === 'mirage') bgColor = 0x6ca3d8;
+    if(selectedMap === 'inferno') bgColor = 0x415366;
+    if(selectedMap === 'nuke') bgColor = 0x333d48;
     
     scene.background = new THREE.Color(bgColor);
-    scene.fog = new THREE.FogExp2(bgColor, 0.003);
+    scene.fog = new THREE.FogExp2(bgColor, 0.0025);
 
     camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 1000);
     const startSpawn = getSafeSpawn(null);
     camera.position.copy(startSpawn); 
 
-    // Iluminação ajustada para tirar o aspecto "branco demais"
-    const ambientLight = new THREE.AmbientLight(0xddeeff, 0.45); 
+    const ambientLight = new THREE.AmbientLight(0xddeeff, 0.55); 
     scene.add(ambientLight);
     
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444455, 0.5); 
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x333344, 0.65); 
     hemiLight.position.set(0, 100, 0); 
     scene.add(hemiLight);
     
-    const dirLight = new THREE.DirectionalLight(0xfff5ea, 0.8);
-    dirLight.position.set(80, 150, 80); 
+    const dirLight = new THREE.DirectionalLight(0xfffaed, 1.1);
+    dirLight.position.set(100, 180, 80); 
     dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 2048;
-    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.mapSize.width = 4096;
+    dirLight.shadow.mapSize.height = 4096;
     dirLight.shadow.camera.near = 0.5;
-    dirLight.shadow.camera.far = 300;
-    dirLight.shadow.camera.left = -100;
-    dirLight.shadow.camera.right = 100;
-    dirLight.shadow.camera.top = 100;
-    dirLight.shadow.camera.bottom = -100;
+    dirLight.shadow.camera.far = 350;
+    dirLight.shadow.camera.left = -120;
+    dirLight.shadow.camera.right = 120;
+    dirLight.shadow.camera.top = 120;
+    dirLight.shadow.camera.bottom = -120;
+    dirLight.shadow.bias = -0.0001;
     scene.add(dirLight);
 
     buildMapGeometries();
@@ -518,7 +516,6 @@ function initGameEngine() {
             let bMesh = networkPlayers[botId];
             
             let bSpawn = getSafeSpawn(camera.position);
-            // Bots no chão certinho (Y = 0)
             bMesh.position.set(bSpawn.x, 0, bSpawn.z);
             
             bots.push({
@@ -620,17 +617,36 @@ function initGameEngine() {
 }
 
 // TEXTURA DE PAREDE E PISO DETALHADAS
-function createWallTexture(baseColor, gridColor = "rgba(0,0,0,0.25)") {
+function createWallTexture(baseColor, gridColor = "rgba(0,0,0,0.25)", pattern = 'grid') {
     const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = baseColor; ctx.fillRect(0, 0, 512, 512);
     
-    // Padrão de blocos/tijolos
     ctx.strokeStyle = gridColor; 
-    ctx.lineWidth = 4;
-    for(let i = 0; i <= 512; i += 64) {
-        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(512, i); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 512); ctx.stroke();
+    ctx.lineWidth = 3;
+
+    if (pattern === 'grid') {
+        for(let i = 0; i <= 512; i += 64) {
+            ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(512, i); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 512); ctx.stroke();
+        }
+    } else if (pattern === 'brick') {
+        const bh = 32, bw = 64;
+        let row = 0;
+        for (let y = 0; y < 512; y += bh) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke();
+            let offset = (row % 2) * (bw / 2);
+            for (let x = offset; x < 512; x += bw) {
+                ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + bh); ctx.stroke();
+            }
+            row++;
+        }
+    }
+
+    // Ruído/Sujeira nas superfícies para textura realista
+    for (let i = 0; i < 1500; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)";
+        ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
     }
     
     const tex = new THREE.CanvasTexture(canvas);
@@ -642,43 +658,55 @@ function createWallTexture(baseColor, gridColor = "rgba(0,0,0,0.25)") {
 function buildMapGeometries() {
     collidables = []; wallMeshes = []; mapWallMeshes = [];
     
-    let fColor, wColor, bColor, trimColor;
+    let fColor, wColor, bColor, trimColor, winColor;
     
     if(selectedMap === 'dust2') {
-        fColor = 0xb59268; wColor = '#c2a882'; bColor = '#8a6543'; trimColor = '#5c4128';
+        fColor = 0xb59268; wColor = '#c2a882'; bColor = '#8a6543'; trimColor = '#5c4128'; winColor = '#3a2717';
     } else if(selectedMap === 'mirage') {
-        fColor = 0x8c7c68; wColor = '#b8a68d'; bColor = '#4a607a'; trimColor = '#2b3a4a';
+        fColor = 0x8c7c68; wColor = '#b8a68d'; bColor = '#4a607a'; trimColor = '#2b3a4a'; winColor = '#1f2833';
     } else if(selectedMap === 'inferno') {
-        fColor = 0x474747; wColor = '#8a3c2c'; bColor = '#5e7363'; trimColor = '#3a2118';
+        fColor = 0x474747; wColor = '#8a3c2c'; bColor = '#5e7363'; trimColor = '#3a2118'; winColor = '#24140e';
     } else { // Nuke
-        fColor = 0x22272c; wColor = '#5a6978'; bColor = '#2d5573'; trimColor = '#1a2228';
+        fColor = 0x22272c; wColor = '#5a6978'; bColor = '#2d5573'; trimColor = '#1a2228'; winColor = '#0f171e';
     }
 
-    const fMat = new THREE.MeshStandardMaterial({ map: createWallTexture('#' + fColor.toString(16), "rgba(0,0,0,0.15)"), roughness: 0.8 });
-    const wMat = new THREE.MeshStandardMaterial({ map: createWallTexture(wColor), roughness: 0.7 });
-    const bMat = new THREE.MeshStandardMaterial({ map: createWallTexture(bColor), roughness: 0.7 });
+    const fMat = new THREE.MeshStandardMaterial({ map: createWallTexture('#' + fColor.toString(16), "rgba(0,0,0,0.15)", 'grid'), roughness: 0.8 });
+    const wMat = new THREE.MeshStandardMaterial({ map: createWallTexture(wColor, "rgba(0,0,0,0.2)", 'brick'), roughness: 0.7 });
+    const bMat = new THREE.MeshStandardMaterial({ map: createWallTexture(bColor, "rgba(0,0,0,0.25)", 'grid'), roughness: 0.7 });
     const trimMat = new THREE.MeshStandardMaterial({ color: trimColor, roughness: 0.5 });
+    const winMat = new THREE.MeshStandardMaterial({ color: winColor, metalness: 0.8, roughness: 0.2 });
 
     // Chão Principal
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), fMat);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(320, 320), fMat);
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 
-    // Muros Delimitadores
-    createBlock(0, 10, -150, 300, 20, 4, wMat); 
-    createBlock(0, 10, 150, 300, 20, 4, wMat);
-    createBlock(-150, 10, 0, 4, 20, 300, wMat); 
-    createBlock(150, 10, 0, 4, 20, 300, wMat);
+    // Muros Delimitadores Perimetrais
+    createBlock(0, 12, -160, 320, 24, 4, wMat); 
+    createBlock(0, 12, 160, 320, 24, 4, wMat);
+    createBlock(-160, 12, 0, 4, 24, 320, wMat); 
+    createBlock(160, 12, 0, 4, 24, 320, wMat);
 
-    // PRÉDIOS ESTRUTURADOS E ESTÉTICOS
+    // CIDADE COMPLEXA COM DIVERSOS PRÉDIOS E VARANDAS
     const cityLayout = [
-        {x: -60, z: 60, w: 28, d: 28, h: 22, mat: wMat},
-        {x: 60, z: 60, w: 28, d: 28, h: 22, mat: bMat},
-        {x: -60, z: -60, w: 28, d: 28, h: 22, mat: bMat},
-        {x: 60, z: -60, w: 28, d: 28, h: 22, mat: wMat}
+        // Prédios dos Cantos
+        {x: -65, z: 65, w: 32, d: 32, h: 22, mat: wMat, hasBalcony: true},
+        {x: 65, z: 65, w: 32, d: 32, h: 22, mat: bMat, hasBalcony: true},
+        {x: -65, z: -65, w: 32, d: 32, h: 22, mat: bMat, hasBalcony: true},
+        {x: 65, z: -65, w: 32, d: 32, h: 22, mat: wMat, hasBalcony: true},
+        
+        // Prédios Centrais Intermediários
+        {x: 0, z: 75, w: 26, d: 20, h: 18, mat: bMat, hasBalcony: true},
+        {x: 0, z: -75, w: 26, d: 20, h: 18, mat: wMat, hasBalcony: true},
+        {x: -75, z: 0, w: 20, d: 26, h: 18, mat: wMat, hasBalcony: false},
+        {x: 75, z: 0, w: 20, d: 26, h: 18, mat: bMat, hasBalcony: false},
+        
+        // Torres Centrais de Combate com Janelas Estratégicas
+        {x: -25, z: -25, w: 22, d: 22, h: 20, mat: wMat, hasBalcony: true},
+        {x: 25, z: 25, w: 22, d: 22, h: 20, mat: bMat, hasBalcony: true}
     ];
 
     cityLayout.forEach(b => {
-        createFunctionalBuilding(b.x, b.z, b.w, b.d, b.h, b.mat, trimMat);
+        createFunctionalBuilding(b.x, b.z, b.w, b.d, b.h, b.mat, trimMat, winMat, b.hasBalcony);
     });
 
     // PROPAGAÇÃO DE OBJETOS ESPECÍFICOS POR MAPA
@@ -687,63 +715,89 @@ function buildMapGeometries() {
         createBlock(15, 2, 15, 4, 4, 4, boxMat);
         createBlock(-20, 2, 30, 5, 4, 5, boxMat);
         createBlock(0, 2, -40, 6, 4, 4, boxMat);
-        createCactus(-35, 15); createCactus(40, -25);
+        createCactus(-35, 15); createCactus(40, -25); createCactus(-10, -50);
     } 
     else if (selectedMap === 'mirage') {
-        createTree(-20, 20); createTree(25, -20); createTree(-30, -30);
+        createTree(-20, 20); createTree(25, -20); createTree(-30, -30); createTree(40, 40);
         const benchMat = new THREE.MeshStandardMaterial({ color: 0x4a2e18 });
         createBlock(10, 0.75, 30, 6, 1.5, 2, benchMat);
         createBlock(-10, 0.75, -30, 6, 1.5, 2, benchMat);
     } 
     else if (selectedMap === 'inferno') {
-        createTree(-15, 40); createTree(20, -40); createTree(40, 20); createTree(-40, -15);
+        createTree(-15, 40); createTree(20, -40); createTree(40, 20); createTree(-40, -15); createTree(0, 45);
     } 
     else if (selectedMap === 'nuke') {
         const metalMat = new THREE.MeshStandardMaterial({ color: 0x445566, metalness: 0.8, roughness: 0.3 });
         createBlock(20, 2, 0, 4, 4, 8, metalMat);
         createBlock(-20, 2, 0, 4, 4, 8, metalMat);
-        createBarrel(10, -15); createBarrel(-15, 25);
+        createBarrel(10, -15); createBarrel(-15, 25); createBarrel(35, 10);
     }
 }
 
-// PRÉDIO REFORMADO COM RAMPA SUAVE DE SUBIDA
-function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat) {
+// PRÉDIOS ESTRUTURADOS COM JANELAS, VARANDAS E RAMPAS LISAS DE ACESSO
+function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winMat, addBalcony = true) {
     const wallT = 1.2;
-    const floorH = 9.0; // Altura ideal para o 2º Andar
+    const floorH = 8.0; 
 
-    // 1. Parede Traseira
-    createBlock(x, height/2, z - depth/2, width, height, wallT, mat);
-    
-    // 2. Paredes Laterais
-    createBlock(x - width/2, height/2, z, wallT, height, depth, mat);
-    createBlock(x + width/2, height/2, z, wallT, height, depth, mat);
+    // Paredes Principais (Térreo ao Topo)
+    createBlock(x, height/2, z - depth/2, width, height, wallT, mat); // Traseira
+    createBlock(x - width/2, height/2, z, wallT, height, depth, mat); // Esquerda
+    createBlock(x + width/2, height/2, z, wallT, height, depth, mat); // Direita
 
-    // 3. Parede Frontal (com entrada no térreo e janela vazada no andar de cima)
+    // Parede Frontal Dividida com Janela/Abertura de Snipers no 2º Andar
     createBlock(x - width/3, floorH/2, z + depth/2, width/3, floorH, wallT, mat);
     createBlock(x + width/3, floorH/2, z + depth/2, width/3, floorH, wallT, mat);
-    createBlock(x, floorH + (height - floorH)/2, z + depth/2, width, height - floorH, wallT, mat);
+    createBlock(x, floorH + (height - floorH) * 0.75, z + depth/2, width, (height - floorH) * 0.5, wallT, mat);
 
-    // Moldura decorativa do topo (Acabamento estético)
+    // Janelas Decorativas com Vidro Reflexivo nas Paredes Laterais
+    const winGeo = new THREE.BoxGeometry(0.2, 2.5, 2.0);
+    const winLeft = new THREE.Mesh(winGeo, winMat);
+    winLeft.position.set(x - width/2 - 0.1, floorH + 2, z);
+    scene.add(winLeft);
+
+    const winRight = new THREE.Mesh(winGeo, winMat);
+    winRight.position.set(x + width/2 + 0.1, floorH + 2, z);
+    scene.add(winRight);
+
+    // Acabamento de Topo
     createBlock(x, height + 0.5, z, width + 0.5, 1.0, depth + 0.5, trimMat);
 
-    // 4. Laje do 2º Andar (com abertura retangular para a rampa)
-    const floorTile1 = new THREE.Mesh(new THREE.BoxGeometry(width - 8, 0.6, depth - 2), mat);
-    floorTile1.position.set(x - 3, floorH, z);
+    // Laje Superior do 2º Andar
+    const floorTile1 = new THREE.Mesh(new THREE.BoxGeometry(width - 6, 0.6, depth - 2), mat);
+    floorTile1.position.set(x - 2, floorH, z);
     floorTile1.receiveShadow = true; floorTile1.castShadow = true;
     scene.add(floorTile1);
     collidables.push(new THREE.Box3().setFromObject(floorTile1));
     wallMeshes.push(floorTile1); mapWallMeshes.push(floorTile1);
 
-    // 5. RAMPA INTERNA SUAVE E ACESSÍVEL (Inclinada perfeitamente)
+    // VARANDA EXTERNA (Se habilitado)
+    if (addBalcony) {
+        const balcDepth = 4.5;
+        const balconyFloor = new THREE.Mesh(new THREE.BoxGeometry(width * 0.6, 0.5, balcDepth), mat);
+        balconyFloor.position.set(x, floorH, z + depth/2 + balcDepth/2);
+        balconyFloor.receiveShadow = true; balconyFloor.castShadow = true;
+        scene.add(balconyFloor);
+        collidables.push(new THREE.Box3().setFromObject(balconyFloor));
+        wallMeshes.push(balconyFloor); mapWallMeshes.push(balconyFloor);
+
+        // Mureta de Proteção da Varanda
+        createBlock(x, floorH + 0.8, z + depth/2 + balcDepth, width * 0.6, 1.2, 0.4, trimMat);
+        createBlock(x - (width * 0.3), floorH + 0.8, z + depth/2 + balcDepth/2, 0.4, 1.2, balcDepth, trimMat);
+        createBlock(x + (width * 0.3), floorH + 0.8, z + depth/2 + balcDepth/2, 0.4, 1.2, balcDepth, trimMat);
+    }
+
+    // RAMPA DE ACESSO FLUIDA E CORRIGIDA
     const rampLength = 18; 
-    const rampGeo = new THREE.BoxGeometry(5.5, 0.4, rampLength);
+    const rampWidth = 5.0;
+    const rampGeo = new THREE.BoxGeometry(rampWidth, 0.4, rampLength);
     const ramp = new THREE.Mesh(rampGeo, trimMat);
     
-    // Posiciona e inclina suavemente (ângulo suave de subida)
-    ramp.position.set(x + width/2 - 4.5, floorH / 2, z);
-    ramp.rotation.x = Math.atan2(floorH, rampLength); 
+    const angle = Math.atan2(floorH, rampLength);
+    ramp.position.set(x + width/2 - 4.0, floorH / 2, z);
+    ramp.rotation.x = angle;
     
     ramp.receiveShadow = true; ramp.castShadow = true;
+    ramp.userData.isRamp = true; // Tag especial para subida livre nas rampas
     scene.add(ramp);
     collidables.push(new THREE.Box3().setFromObject(ramp));
     wallMeshes.push(ramp); mapWallMeshes.push(ramp);
@@ -751,11 +805,11 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat) {
 
 // ELEMENTOS DE CENÁRIO 
 function createTree(x, z) {
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 6), new THREE.MeshStandardMaterial({color: 0x4a2e18}));
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 6), new THREE.MeshStandardMaterial({color: 0x4a2e18, roughness: 0.9}));
     trunk.position.set(x, 3, z); trunk.castShadow = true; scene.add(trunk);
     collidables.push(new THREE.Box3().setFromObject(trunk));
     
-    const leaves = new THREE.Mesh(new THREE.SphereGeometry(3.5, 8, 8), new THREE.MeshStandardMaterial({color: 0x2d5a27, roughness: 0.9}));
+    const leaves = new THREE.Mesh(new THREE.SphereGeometry(3.5, 8, 8), new THREE.MeshStandardMaterial({color: 0x2d5a27, roughness: 0.8}));
     leaves.position.set(x, 7.5, z); leaves.castShadow = true; scene.add(leaves);
 }
 
@@ -767,7 +821,7 @@ function createCactus(x, z) {
 }
 
 function createBarrel(x, z) {
-    const bMat = new THREE.MeshStandardMaterial({color: 0xc0392b, metalness: 0.5, roughness: 0.4});
+    const bMat = new THREE.MeshStandardMaterial({color: 0xc0392b, metalness: 0.6, roughness: 0.3});
     const barrel = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 3.5, 12), bMat);
     barrel.position.set(x, 1.75, z); barrel.castShadow = true; scene.add(barrel);
     collidables.push(new THREE.Box3().setFromObject(barrel));
@@ -989,7 +1043,6 @@ function shoot() {
     }
 }
 
-// SISTEMA DE DANO E PROTEÇÃO FUNCIONAL
 function takeDamage(dmg, sourcePos) {
     if (isDead || isInvulnerable) return;
 
@@ -1183,19 +1236,40 @@ function animate() {
         const oldPos = camera.position.clone();
         camera.position.addScaledVector(velocity, delta);
 
-        // Sistema de colisão com detecção de altura para rampas (Ramp Detection)
+        // DETECÇÃO E COLISÃO COM RAMPAS E ELEVAÇÕES
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
+        
+        // Raycast para verificar o piso logo abaixo do jogador
+        const feetRay = new THREE.Raycaster(camera.position, new THREE.Vector3(0, -1, 0), 0, currentHeight + 1.2);
+        const feetHits = feetRay.intersectObjects(wallMeshes);
+
+        if (feetHits.length > 0) {
+            let hitGroundY = feetHits[0].point.y + currentHeight;
+            let diffY = hitGroundY - camera.position.y;
+
+            // Se for uma elevação suave / rampa, ajusta a altura suavemente
+            if (diffY > -0.8 && diffY < 1.4) {
+                camera.position.y = hitGroundY;
+                velocity.y = 0;
+                canJump = true;
+            }
+        }
+
         for (let box of collidables) {
             if (playerBox.intersectsBox(box)) {
-                // Se a colisão for no nível do chão/pé, permite subir a rampa ajustando Y
                 let boxTop = box.max.y;
-                if (boxTop - (camera.position.y - currentHeight) <= 0.6) {
+                let stepHeight = boxTop - (camera.position.y - currentHeight);
+
+                // Permite degraus suaves até 1.2 unidades de altura
+                if (stepHeight > 0 && stepHeight <= 1.2) {
                     camera.position.y = boxTop + currentHeight;
                     velocity.y = 0;
                     canJump = true;
                 } else {
-                    camera.position.copy(oldPos); 
-                    velocity.set(0, 0, 0); 
+                    camera.position.x = oldPos.x;
+                    camera.position.z = oldPos.z;
+                    velocity.x = 0;
+                    velocity.z = 0;
                     break;
                 }
             }
