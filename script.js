@@ -4,9 +4,13 @@ let peer, isHost = true;
 let hostConns = []; 
 let myConn = null;  
 let networkPlayers = {}; 
+let playerScores = {}; 
 let playerNick = "Striker", selectedMap = "dust2";
 let playerMoney = 5000;
 let activeGrenades = [];
+
+// Duplo Clique no W para Correr
+let lastWPressTime = 0;
 
 // Configuração de Áudio Procedural
 let audioCtx = null;
@@ -121,15 +125,16 @@ const container = document.getElementById('canvas-container');
 const pauseScreen = document.getElementById('pause-screen');
 const buyMenu = document.getElementById('buy-menu');
 
+// Zonas seguras na rua sem interseção com prédios
 const safeSpawns = [
-    {x: -150, z: 150}, {x: 150, z: -150}, {x: -150, z: -150}, {x: 150, z: 150},
-    {x: 0, z: 150}, {x: 0, z: -150}, {x: 150, z: 0}, {x: -150, z: 0}
+    {x: 0, z: 0}, {x: 30, z: 0}, {x: -30, z: 0}, {x: 0, z: 30}, {x: 0, z: -30},
+    {x: 50, z: 50}, {x: -50, z: -50}, {x: 50, z: -50}, {x: -50, z: 50}
 ];
 
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('room')) {
     isHost = false; gameMode = 'client'; maxClients = 0;
-    document.getElementById('mode-1v1').classList.add('active');
+    document.getElementById('mode-2v2').classList.add('active');
     document.getElementById('mode-bot').classList.remove('active');
     document.getElementById('net-link-section').style.display = 'block';
     document.getElementById('net-status-label').innerText = "Conectado! Aguardando o Host iniciar...";
@@ -153,7 +158,7 @@ function setGameMode(mode) {
         btnStart.disabled = false;
         btnStart.innerText = "INICIAR PARTIDA";
     } else {
-        maxClients = mode === '1v1' ? 1 : 2;
+        maxClients = mode === '1v1' ? 1 : 2; // 2 clientes + host = 3 players
         document.getElementById('net-link-section').style.display = 'block';
         updateLobbyStatus();
     }
@@ -170,7 +175,9 @@ function initHost() {
         c.on('open', () => { updateLobbyStatus(); });
         c.on('close', () => {
             hostConns = hostConns.filter(conn => conn !== c);
+            delete playerScores[c.peer];
             updateLobbyStatus();
+            updateScoreboard();
         });
     });
 }
@@ -190,7 +197,9 @@ function initClient(targetRoom) {
 function updateLobbyStatus() {
     if (gameMode === 'bot') return;
     const label = document.getElementById('net-status-label');
-    label.innerText = `Jogadores Conectados: (${hostConns.length}/${maxClients})`;
+    const currentTotal = hostConns.length + 1;
+    const maxTotal = maxClients + 1;
+    label.innerText = `Jogadores Conectados: (${currentTotal}/${maxTotal})`;
     label.style.color = hostConns.length >= maxClients ? "#00ff88" : "#f0ad4e";
     
     if (hostConns.length >= maxClients) {
@@ -198,7 +207,7 @@ function updateLobbyStatus() {
         btnStart.innerText = "INICIAR PARTIDA";
     } else {
         btnStart.disabled = true;
-        btnStart.innerText = `AGUARDANDO JOGADORES (${hostConns.length}/${maxClients})`;
+        btnStart.innerText = `AGUARDANDO (${currentTotal}/${maxTotal})`;
     }
 }
 
@@ -219,7 +228,7 @@ function handleData(senderId, data) {
         startGameSession();
     }
     if (data.type === 'pos_update') {
-        if (!networkPlayers[peerId]) createNetworkPlayer(peerId);
+        if (!networkPlayers[peerId]) createNetworkPlayer(peerId, data.nick || "Inimigo");
         networkPlayers[peerId].position.set(data.x, data.y, data.z);
         networkPlayers[peerId].rotation.y = data.ry;
     }
@@ -230,14 +239,22 @@ function handleData(senderId, data) {
     if (data.type === 'hit' && data.target === (isHost ? 'host' : peer.id)) {
         takeDamage(data.dmg, new THREE.Vector3(data.srcX, data.srcY, data.srcZ));
     }
-    if (data.type === 'death') {
-        showKillFeed("Jogador Eliminado!");
-        if(isHost) enemyScore++; else myScore++;
+    if (data.type === 'score_update') {
+        playerScores = data.scores;
         updateScoreboard();
+    }
+    if (data.type === 'death') {
+        showKillFeed(`${data.killerNick || "Alguém"} eliminou um jogador!`);
+        if (isHost) {
+            if (!playerScores[data.killerId]) playerScores[data.killerId] = 0;
+            playerScores[data.killerId]++;
+            broadcastData({ type: 'score_update', scores: playerScores });
+            updateScoreboard();
+        }
     }
 }
 
-function createNetworkPlayer(id) {
+function createNetworkPlayer(id, nick) {
     if (networkPlayers[id]) return;
     const group = new THREE.Group();
     
@@ -282,13 +299,14 @@ function createNetworkPlayer(id) {
     scene.add(group);
     wallMeshes.push(hitboxBody);
     networkPlayers[id] = group;
+    if (!playerScores[id]) playerScores[id] = 0;
 }
 
 let scene, camera, renderer, prevTime = performance.now();
 let moveF = false, moveB = false, moveL = false, moveR = false, canJump = true;
 let isRunning = false, isCrouching = false;
 let velocity = new THREE.Vector3(), currentHeight = 1.8;
-let hp = 100, myScore = 0, enemyScore = 0, isDead = false;
+let hp = 100, isDead = false;
 let gunGroup, muzzleFlashMesh, muzzleLight;
 let bots = []; 
 let collidables = [], wallMeshes = [], mapWallMeshes = [];
@@ -300,8 +318,10 @@ let lastSentTime = 0;
 btnStart.addEventListener('click', () => {
     playerNick = document.getElementById('player-nick').value || "Striker";
     selectedMap = document.getElementById('map-select').value;
-    document.getElementById('display-my-name').innerText = playerNick.toUpperCase();
     
+    const myId = isHost ? 'host' : peer.id;
+    playerScores[myId] = 0;
+
     if (isHost && gameMode !== 'bot') {
         broadcastData({ type: 'start_game', map: selectedMap });
     }
@@ -319,6 +339,7 @@ function startGameSession() {
     
     updateHUD();
     initGameEngine();
+    updateScoreboard();
     animate();
     document.body.requestPointerLock();
 }
@@ -380,7 +401,7 @@ function buyWeapon(key) {
 
 function updateHUD() {
     const curWeaponData = itemsConfig[getCurrentWeaponKey()];
-    document.getElementById('hp').innerText = hp;
+    document.getElementById('hp').innerText = Math.max(0, Math.round(hp));
     document.getElementById('money-display').innerText = `$${playerMoney}`;
     document.getElementById('ammo').innerText = curWeaponData.maxAmmo ? inventory[activeSlot].ammo : '-';
     document.getElementById('reserve-ammo').innerText = curWeaponData.maxAmmo ? `/ ${inventory[activeSlot].reserveAmmo}` : '';
@@ -388,8 +409,24 @@ function updateHUD() {
 }
 
 function updateScoreboard() {
-    document.getElementById('score-player').innerText = myScore;
-    document.getElementById('score-enemy').innerText = enemyScore;
+    const wrapper = document.getElementById('score-wrapper');
+    wrapper.innerHTML = '';
+    
+    if (gameMode === 'bot') {
+        const myId = isHost ? 'host' : peer.id;
+        const myScore = playerScores[myId] || 0;
+        const enemyScore = playerScores['bots'] || 0;
+        wrapper.innerHTML = `<div class="score-card"><span class="p-name">${playerNick.toUpperCase()}:</span><span class="p-score">${myScore}</span></div>`;
+        wrapper.innerHTML += ` &nbsp;|&nbsp; <div class="score-card"><span class="p-name">BOTS:</span><span class="p-score">${enemyScore}</span></div>`;
+    } else {
+        const myId = isHost ? 'host' : peer.id;
+        wrapper.innerHTML += `<div class="score-card"><span class="p-name">${playerNick.toUpperCase()}:</span><span class="p-score">${playerScores[myId] || 0}</span></div>`;
+        
+        let pCount = 2;
+        for (let id in networkPlayers) {
+            wrapper.innerHTML += ` &nbsp;|&nbsp; <div class="score-card"><span class="p-name">PLAYER ${pCount++}:</span><span class="p-score">${playerScores[id] || 0}</span></div>`;
+        }
+    }
 }
 
 function getCurrentWeaponKey() {
@@ -401,11 +438,11 @@ function initGameEngine() {
     
     let bgColor = 0xd6e4f0;
     if(selectedMap === 'mirage') bgColor = 0xaecce8;
-    if(selectedMap === 'inferno') bgColor = 0x8a99a8;
-    if(selectedMap === 'nuke') bgColor = 0x708090;
+    if(selectedMap === 'inferno') bgColor = 0x5a6978;
+    if(selectedMap === 'nuke') bgColor = 0x4a5568;
     
     scene.background = new THREE.Color(bgColor);
-    scene.fog = new THREE.FogExp2(bgColor, 0.0025);
+    scene.fog = new THREE.FogExp2(bgColor, 0.002);
 
     camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.copy(getSafeSpawn(null)); 
@@ -414,7 +451,6 @@ function initGameEngine() {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x666677, 1.1); hemiLight.position.set(0, 100, 0); scene.add(hemiLight);
     const dirLight = new THREE.DirectionalLight(0xfffaee, 1.4);
     dirLight.position.set(120, 250, 120); dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048;
     scene.add(dirLight);
 
     buildMapGeometries();
@@ -431,7 +467,7 @@ function initGameEngine() {
         bots = [];
         for (let i = 0; i < 5; i++) {
             const botId = 'bot_' + i;
-            createNetworkPlayer(botId);
+            createNetworkPlayer(botId, "Bot " + i);
             let bMesh = networkPlayers[botId];
             let bPos = getSafeSpawn(camera.position);
             bMesh.position.copy(bPos);
@@ -455,8 +491,6 @@ function initGameEngine() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1; 
     container.appendChild(renderer.domElement);
 
     document.addEventListener('mousemove', (e) => {
@@ -483,8 +517,18 @@ function initGameEngine() {
         if (e.code === 'KeyB') toggleBuyMenu(!buyMenuOpen);
         if (e.code === 'KeyG') throwGrenade();
         if (!pointerLocked || buyMenuOpen) return;
+
+        // Duplo Clique no W para Correr
+        if (e.code === 'KeyW' && !moveF) {
+            const now = performance.now();
+            if (now - lastWPressTime < 280) {
+                isRunning = true;
+            }
+            lastWPressTime = now;
+            moveF = true;
+        }
+
         switch(e.code) {
-            case 'KeyW': moveF = true; break;
             case 'KeyS': moveB = true; break;
             case 'KeyA': moveL = true; break;
             case 'KeyD': moveR = true; break;
@@ -494,7 +538,6 @@ function initGameEngine() {
             case 'Digit2':
                 activeSlot = 'secondary'; build3DWeapon(); setAim(false); updateHUD();
                 break;
-            case 'ShiftLeft': isRunning = true; break;
             case 'ControlLeft': isCrouching = true; currentHeight = 1.0; break;
             case 'Space': if(canJump) { velocity.y = 8.5; canJump = false; } break;
             case 'KeyR': reload(); break;
@@ -503,11 +546,10 @@ function initGameEngine() {
 
     document.addEventListener('keyup', (e) => {
         switch(e.code) {
-            case 'KeyW': moveF = false; break;
+            case 'KeyW': moveF = false; isRunning = false; break;
             case 'KeyS': moveB = false; break;
             case 'KeyA': moveL = false; break;
             case 'KeyD': moveR = false; break;
-            case 'ShiftLeft': isRunning = false; break;
             case 'ControlLeft': isCrouching = false; currentHeight = 1.8; break;
         }
     });
@@ -533,115 +575,150 @@ function getSafeSpawn(avoidPos) {
     let attempts = 0;
     while(attempts < 10) {
         let pt = safeSpawns[Math.floor(Math.random() * safeSpawns.length)];
-        if(!avoidPos || avoidPos.distanceTo(new THREE.Vector3(pt.x, 1.8, pt.z)) > 40) { bestPoint = pt; break; }
+        let testVec = new THREE.Vector3(pt.x, 1.8, pt.z);
+        if(!avoidPos || avoidPos.distanceTo(testVec) > 25) { bestPoint = pt; break; }
         attempts++;
     }
     return new THREE.Vector3(bestPoint.x, 1.8, bestPoint.z);
 }
 
-function createTexturedBrick(baseColor, detailColor) {
-    const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
+// TEXTURA DE PAREDE LIMPA
+function createWallTexture(baseColor) {
+    const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = baseColor; ctx.fillRect(0, 0, 512, 512);
-    
-    // Tijolos / Detalhes de parede
-    ctx.fillStyle = detailColor;
-    ctx.lineWidth = 2;
-    for(let y=0; y<512; y+=32) {
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke();
-    }
-    for(let x=0; x<512; x+=64) {
-        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 512); ctx.stroke();
-    }
-
-    // Desenho de Janelas embutidas na textura para realismo
-    ctx.fillStyle = "#111115";
-    for(let x=40; x<512; x+=128) {
-        for(let y=40; y<512; y+=128) {
-            ctx.fillRect(x, y, 48, 72);
-            ctx.strokeStyle = "#444";
-            ctx.lineWidth = 4;
-            ctx.strokeRect(x, y, 48, 72);
-        }
-    }
-
+    ctx.fillStyle = baseColor; ctx.fillRect(0, 0, 256, 256);
+    ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = 4;
+    ctx.strokeRect(0, 0, 256, 256);
     const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(4, 4);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(2, 2);
     return tex;
 }
 
 function buildMapGeometries() {
-    let fMat, wMat, bMat;
+    collidables = []; wallMeshes = []; mapWallMeshes = [];
+    
+    let fColor, wColor, bColor;
     
     if(selectedMap === 'dust2') {
-        fMat = new THREE.MeshStandardMaterial({ color: 0xc9a87d, roughness: 1.0 });
-        wMat = new THREE.MeshStandardMaterial({ map: createTexturedBrick('#d6c29a', '#8a744e'), roughness: 0.9 });
-        bMat = new THREE.MeshStandardMaterial({ map: createTexturedBrick('#8c6747', '#47311d'), roughness: 0.8 });
+        fColor = 0xc9a87d; wColor = '#d6c29a'; bColor = '#8c6747';
     } else if(selectedMap === 'mirage') {
-        fMat = new THREE.MeshStandardMaterial({ color: 0xb09b7b, roughness: 0.9 });
-        wMat = new THREE.MeshStandardMaterial({ map: createTexturedBrick('#d4c3a7', '#8a7d65'), roughness: 0.8 });
-        bMat = new THREE.MeshStandardMaterial({ color: 0x5a7694, roughness: 0.6 });
+        fColor = 0xb09b7b; wColor = '#e0d0b0'; bColor = '#5a7694';
     } else if(selectedMap === 'inferno') {
-        fMat = new THREE.MeshStandardMaterial({ color: 0x6e6e6e, roughness: 0.8 });
-        wMat = new THREE.MeshStandardMaterial({ map: createTexturedBrick('#a84b38', '#5e251a'), roughness: 0.9 });
-        bMat = new THREE.MeshStandardMaterial({ color: 0x7c9683, roughness: 0.7 });
-    } else { 
-        fMat = new THREE.MeshStandardMaterial({ color: 0x33383d, roughness: 0.7 });
-        wMat = new THREE.MeshStandardMaterial({ map: createTexturedBrick('#a2adb8', '#545f69'), roughness: 0.7 });
-        bMat = new THREE.MeshStandardMaterial({ color: 0x427aa1, metalness: 0.3, roughness: 0.5 });
+        fColor = 0x555555; wColor = '#a84b38'; bColor = '#7c9683';
+    } else { // Nuke
+        fColor = 0x2b3036; wColor = '#708090'; bColor = '#427aa1';
     }
 
-    // Chão Principal da Cidade
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), fMat);
+    const fMat = new THREE.MeshStandardMaterial({ color: fColor, roughness: 0.9 });
+    const wMat = new THREE.MeshStandardMaterial({ map: createWallTexture(wColor), roughness: 0.8 });
+    const bMat = new THREE.MeshStandardMaterial({ map: createWallTexture(bColor), roughness: 0.8 });
+
+    // Chão Principal
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), fMat);
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 
-    // Muros Delimitadores
-    createBlock(0, 12, -200, 400, 24, 4, wMat); 
-    createBlock(0, 12, 200, 400, 24, 4, wMat);
-    createBlock(-200, 12, 0, 4, 24, 400, wMat); 
-    createBlock(200, 12, 0, 4, 24, 400, wMat);
+    // Muros Delimitadores da Cidade
+    createBlock(0, 10, -150, 300, 20, 2, wMat); 
+    createBlock(0, 10, 150, 300, 20, 2, wMat);
+    createBlock(-150, 10, 0, 2, 20, 300, wMat); 
+    createBlock(150, 10, 0, 2, 20, 300, wMat);
 
-    // GERADOR DE PRÉDIOS COM MÚLTIPLOS ANDARES E JANELAS
+    // PRÉDIOS ESTRUTURADOS COM JANELAS VAZADAS E RAMPAS INTERNAS
     const cityLayout = [
-        {x: -90, z: 90, w: 50, d: 50, h: 32, mat: wMat},
-        {x: 90, z: 90, w: 50, d: 50, h: 36, mat: bMat},
-        {x: -90, z: -90, w: 50, d: 50, h: 30, mat: bMat},
-        {x: 90, z: -90, w: 50, d: 50, h: 34, mat: wMat},
-        {x: 0, z: 120, w: 60, d: 40, h: 38, mat: wMat},
-        {x: 0, z: -120, w: 60, d: 40, h: 38, mat: bMat},
-        {x: -130, z: 0, w: 40, d: 60, h: 28, mat: bMat},
-        {x: 130, z: 0, w: 40, d: 60, h: 28, mat: wMat}
+        {x: -70, z: 70, w: 30, d: 30, h: 24, mat: wMat},
+        {x: 70, z: 70, w: 30, d: 30, h: 24, mat: bMat},
+        {x: -70, z: -70, w: 30, d: 30, h: 24, mat: bMat},
+        {x: 70, z: -70, w: 30, d: 30, h: 24, mat: wMat}
     ];
 
     cityLayout.forEach(b => {
-        createMultiStoryBuilding(b.x, b.z, b.w, b.d, b.h, b.mat);
+        createFunctionalBuilding(b.x, b.z, b.w, b.d, b.h, b.mat);
     });
+
+    // ADICIONANDO PROPAGAÇÃO DE OBJETOS ESPECÍFICOS POR MAPA
+    if (selectedMap === 'dust2') {
+        // Caixas de Madeira do Deserto
+        const boxMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.8 });
+        createBlock(15, 2, 15, 4, 4, 4, boxMat);
+        createBlock(-20, 2, 30, 5, 4, 5, boxMat);
+        createBlock(0, 2, -40, 6, 4, 4, boxMat);
+        createCactus(-35, 15); createCactus(40, -25);
+    } 
+    else if (selectedMap === 'mirage') {
+        // Árvores e Bancos Urbanos
+        createTree(-20, 20); createTree(25, -20); createTree(-30, -30);
+        const benchMat = new THREE.MeshStandardMaterial({ color: 0x4a2e18 });
+        createBlock(10, 1, 30, 6, 1.5, 2, benchMat);
+        createBlock(-10, 1, -30, 6, 1.5, 2, benchMat);
+    } 
+    else if (selectedMap === 'inferno') {
+        // Vilarejo com Árvores densas e paredes rústicas
+        createTree(-15, 40); createTree(20, -40); createTree(40, 20); createTree(-40, -15);
+    } 
+    else if (selectedMap === 'nuke') {
+        // Barris Industriais e Caixas Metálicas
+        const metalMat = new THREE.MeshStandardMaterial({ color: 0x445566, metalness: 0.8, roughness: 0.3 });
+        createBlock(20, 2, 0, 4, 4, 8, metalMat);
+        createBlock(-20, 2, 0, 4, 4, 8, metalMat);
+        createBarrel(10, -15); createBarrel(-15, 25);
+    }
 }
 
-// Prédio detalhado com andares múltiplos, lajes internas, sacadas e portas abertas
-function createMultiStoryBuilding(x, z, width, depth, height, mat) {
-    const wallThick = 2;
-    const floorsCount = 3; // 3 Andares
-    const floorHeight = height / floorsCount;
+// PRÉDIO COM INTERIOR ACESSÍVEL, RAMPAS E JANELAS VAZADAS
+function createFunctionalBuilding(x, z, width, depth, height, mat) {
+    const wallT = 1.5;
+    const floorH = height / 2;
+    const winW = 6, winH = 4, winY = 4;
 
-    // Paredes externas com aberturas de porta no térreo
-    createBlock(x, height/2, z - depth/2, width, height, wallThick, mat);
-    createBlock(x - width/2, height/2, z, wallThick, height, depth, mat);
-    createBlock(x + width/2, height/2, z, wallThick, height, depth, mat);
+    // Paredes Frontal e Traseira com Janelas Vazadas
+    // Parede Frontal (Dividida para criar janela)
+    createBlock(x - width/4 - 1, winY/2, z + depth/2, width/2 - 2, winY, wallT, mat);
+    createBlock(x + width/4 + 1, winY/2, z + depth/2, width/2 - 2, winY, wallT, mat);
+    createBlock(x, winY + winH + (floorH - winY - winH)/2, z + depth/2, width, floorH - winY - winH, wallT, mat);
+
+    // Parede Traseira Completa
+    createBlock(x, height/2, z - depth/2, width, height, wallT, mat);
+
+    // Lado Esquerdo e Lado Direito
+    createBlock(x - width/2, height/2, z, wallT, height, depth, mat);
+    createBlock(x + width/2, height/2, z, wallT, height, depth, mat);
+
+    // Laje do 2º Andar com abertura para a Rampa
+    createBlock(x - 3, floorH, z, width - 8, 0.5, depth - 2, mat);
+
+    // Rampa de Acesso ao 2º Andar
+    const rampGeo = new THREE.BoxGeometry(6, 0.4, floorH * 1.5);
+    const ramp = new THREE.Mesh(rampGeo, mat);
+    ramp.position.set(x + width/2 - 5, floorH/2, z);
+    ramp.rotation.x = 0.45;
+    ramp.receiveShadow = true; ramp.castShadow = true;
+    scene.add(ramp);
+    collidables.push(new THREE.Box3().setFromObject(ramp));
+    wallMeshes.push(ramp); mapWallMeshes.push(ramp);
+}
+
+// ELEMENTOS DE CENÁRIO (ÁRVORES, CACTOS E BARRIS)
+function createTree(x, z) {
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 6), new THREE.MeshStandardMaterial({color: 0x4a2e18}));
+    trunk.position.set(x, 3, z); trunk.castShadow = true; scene.add(trunk);
+    collidables.push(new THREE.Box3().setFromObject(trunk));
     
-    const doorWidth = 4;
-    const sideW = (width - doorWidth) / 2;
-    createBlock(x - width/2 + sideW/2, height/2, z + depth/2, sideW, height, wallThick, mat);
-    createBlock(x + width/2 - sideW/2, height/2, z + depth/2, sideW, height, wallThick, mat);
+    const leaves = new THREE.Mesh(new THREE.SphereGeometry(3.5, 8, 8), new THREE.MeshStandardMaterial({color: 0x2d5a27, roughness: 0.9}));
+    leaves.position.set(x, 7.5, z); leaves.castShadow = true; scene.add(leaves);
+}
 
-    // Lajes / Pisos internos para cada andar (permitindo que o jogador suba/explore andares)
-    for(let f = 1; f < floorsCount; f++) {
-        let floorY = f * floorHeight;
-        createBlock(x, floorY, z, width - 1, 0.6, depth - 1, mat);
-    }
+function createCactus(x, z) {
+    const cacMat = new THREE.MeshStandardMaterial({color: 0x3b6e36, roughness: 0.8});
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 7), cacMat);
+    body.position.set(x, 3.5, z); body.castShadow = true; scene.add(body);
+    collidables.push(new THREE.Box3().setFromObject(body));
+}
 
-    // Telhado / Laje Superior
-    createBlock(x, height, z, width, 1.5, depth, mat);
+function createBarrel(x, z) {
+    const bMat = new THREE.MeshStandardMaterial({color: 0xc0392b, metalness: 0.5, roughness: 0.4});
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 3.5, 12), bMat);
+    barrel.position.set(x, 1.75, z); barrel.castShadow = true; scene.add(barrel);
+    collidables.push(new THREE.Box3().setFromObject(barrel));
 }
 
 function createBlock(x, y, z, w, h, d, mat) {
@@ -690,19 +767,19 @@ function updateGrenades(delta, time) {
         if (time >= g.explosionTime) {
             playExplosionSound();
             
-            // Efeito visual de clarão da explosão
             const expLight = new THREE.PointLight(0xff5500, 5, 25);
             expLight.position.copy(g.mesh.position);
             scene.add(expLight);
             setTimeout(() => scene.remove(expLight), 200);
 
-            // Dano em bots próximos
             if (gameMode === 'bot') {
                 for (let bot of bots) {
                     if (bot.mesh.position.distanceTo(g.mesh.position) < 12) {
                         bot.hp -= 90;
                         if (bot.hp <= 0) {
-                            myScore++; playerMoney += 300; updateHUD(); updateScoreboard();
+                            const myId = isHost ? 'host' : peer.id;
+                            playerScores[myId] = (playerScores[myId] || 0) + 1;
+                            playerMoney += 300; updateHUD(); updateScoreboard();
                             showKillFeed("+ $300 (Granada HE)");
                             bot.hp = 100;
                             bot.pos.copy(getSafeSpawn(camera.position)); 
@@ -791,7 +868,6 @@ function shoot() {
     if (now - lastShotTime < cfg.fireRate) return;
 
     lastShotTime = now; inventory[activeSlot].ammo--; updateHUD();
-    
     playShootSound();
 
     gunGroup.position.z += 0.05; setTimeout(() => gunGroup.position.z -= 0.05, 50);
@@ -821,7 +897,9 @@ function shoot() {
                 if (hit.object.parent === bot.mesh || hit.object === bot.mesh) {
                     bot.hp -= cfg.damage; hitPlayer = true;
                     if (bot.hp <= 0) {
-                        myScore++; playerMoney += 300; updateHUD(); updateScoreboard();
+                        const myId = isHost ? 'host' : peer.id;
+                        playerScores[myId] = (playerScores[myId] || 0) + 1;
+                        playerMoney += 300; updateHUD(); updateScoreboard();
                         showKillFeed("+ $300 (Eliminação)");
                         bot.hp = 100;
                         bot.pos.copy(getSafeSpawn(camera.position)); 
@@ -857,12 +935,22 @@ function shoot() {
     }
 }
 
+// SISTEMA DE DANO E PROTEÇÃO FUNCIONAL COM COLETE E CAPACETE
 function takeDamage(dmg, sourcePos) {
     if (isDead || isInvulnerable) return;
 
     let finalDmg = dmg;
-    if (hasArmor) finalDmg *= 0.7;
-    if (hasHelmet && sourcePos && sourcePos.y > camera.position.y + 0.3) finalDmg *= 0.5;
+    const isHeadshot = sourcePos && (sourcePos.y > camera.position.y + 0.2);
+
+    if (isHeadshot) {
+        if (hasHelmet) {
+            finalDmg *= 0.4; // Capacete reduz 60% do dano na cabeça
+        }
+    } else {
+        if (hasArmor) {
+            finalDmg *= 0.65; // Colete reduz 35% do dano corporal
+        }
+    }
 
     hp -= finalDmg;
     
@@ -886,20 +974,21 @@ function takeDamage(dmg, sourcePos) {
         hp = 0; isDead = true;
         isMouseDown = false;
         if(gameMode !== 'bot') {
-            broadcastData({ type: 'death' });
-            enemyScore++; updateScoreboard();
+            const myId = isHost ? 'host' : peer.id;
+            broadcastData({ type: 'death', killerNick: playerNick, killerId: myId });
         } else { 
-            enemyScore++; updateScoreboard(); 
+            playerScores['bots'] = (playerScores['bots'] || 0) + 1;
+            updateScoreboard(); 
         }
         const msg = document.getElementById('round-message');
-        msg.innerText = "VOCÊ FOI ELIMINADO (DEATHCAM)";
+        msg.innerText = "VOCÊ FOI ELIMINADO";
         msg.style.display = 'block';
 
         const scopeDiv = document.getElementById('sniper-scope');
         if(scopeDiv) scopeDiv.style.display = 'none';
 
         document.exitPointerLock();
-        setTimeout(restartRound, 4000);
+        setTimeout(restartRound, 3000);
     }
     updateHUD();
 }
@@ -915,20 +1004,20 @@ function restartRound() {
     if (invulnerableTimeout) clearTimeout(invulnerableTimeout);
     
     const msg = document.getElementById('round-message');
-    msg.innerText = "REVIVEU! 20 SEGUNDOS DE INVULNERABILIDADE";
+    msg.innerText = "REVIVEU! INVULNERÁVEL POR 3s";
     msg.style.display = 'block';
     
     invulnerableTimeout = setTimeout(() => {
         isInvulnerable = false;
         if (!isDead) msg.style.display = 'none';
-    }, 20000);
+    }, 3000);
 
     updateHUD();
     build3DWeapon();
     camera.position.copy(getSafeSpawn(null)); 
     
     if (gameMode === 'bot') {
-        bots.forEach((bot, idx) => {
+        bots.forEach((bot) => {
             bot.hp = 100;
             bot.pos.copy(getSafeSpawn(camera.position));
             bot.mesh.position.copy(bot.pos);
@@ -973,11 +1062,11 @@ function updateBotLogic(delta, time) {
 
         bot.mesh.lookAt(camera.position.x, bot.mesh.position.y, camera.position.z);
 
-        if (hasLOS && dist < 50) {
-            if (time - bot.lastShot > 800) { 
+        if (hasLOS && dist < 45) {
+            if (time - bot.lastShot > 850) { 
                 bot.lastShot = time; 
                 playShootSound(); 
-                if (Math.random() > 0.4) takeDamage(14, bot.mesh.position); 
+                if (Math.random() > 0.45) takeDamage(16, bot.mesh.position); 
             }
             
             const strafeVetor = new THREE.Vector3().crossVectors(dirToPlayer, new THREE.Vector3(0,1,0)).normalize();
@@ -994,7 +1083,7 @@ function updateBotLogic(delta, time) {
             const moveVetor = new THREE.Vector3();
             bot.mesh.getWorldDirection(moveVetor); moveVetor.y = 0; moveVetor.normalize();
 
-            bot.mesh.position.addScaledVector(moveVetor, 6.0 * delta); 
+            bot.mesh.position.addScaledVector(moveVetor, 5.0 * delta); 
             
             botBox.setFromCenterAndSize(bot.mesh.position, new THREE.Vector3(1.2, 1.8, 1.2));
             let collides = false;
@@ -1030,7 +1119,7 @@ function animate() {
         velocity.z -= velocity.z * 10.0 * delta;
         velocity.y -= 9.8 * 4.5 * delta;
 
-        let speed = isCrouching ? 25 : (isRunning ? 100 : 65);
+        let speed = isCrouching ? 25 : (isRunning ? 110 : 65);
         if(isAiming) speed *= 0.5;
 
         if (moveF) velocity.addScaledVector(camDir, speed * delta);
@@ -1071,7 +1160,8 @@ function animate() {
     updateBotLogic(delta, time);
 
     if (gameMode !== 'bot' && time - lastSentTime > 40) {
-        broadcastData({ type: 'pos_update', x: camera.position.x, y: camera.position.y, z: camera.position.z, ry: cameraEuler.y });
+        const myId = isHost ? 'host' : peer.id;
+        broadcastData({ type: 'pos_update', id: myId, nick: playerNick, x: camera.position.x, y: camera.position.y, z: camera.position.z, ry: cameraEuler.y });
         lastSentTime = time;
     }
 
