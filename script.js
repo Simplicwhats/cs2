@@ -741,6 +741,7 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     const sideWallW = (width - doorWidth) / 2;
     createBlock(x - width/2 + sideWallW/2, floorH/2, z + depth/2, sideWallW, floorH, wallT, mat);
     createBlock(x + width/2 - sideWallW/2, floorH/2, z + depth/2, sideWallW, floorH, wallT, mat);
+    
     // Parede Frontal do 2º Andar
     createBlock(x, floorH + (height - floorH)/2, z + depth/2, width, height - floorH, wallT, mat);
 
@@ -757,15 +758,15 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     // Moldura do Telhado
     createBlock(x, height + 0.5, z, width + 0.5, 1.0, depth + 0.5, trimMat);
 
-    // --- PISO DO 2º ANDAR COM BURACO (VÃO DA ESCADA) ---
-    // Em vez de uma placa inteira, dividimos o chão em duas seções para deixar o buraco da escada no fundo/lado
-    const stairHoleDepth = 10.0;
-    const stairHoleWidth = 6.0;
+    // --- PISO DO 2º ANDAR COM BURACO AMPLIADO (VÃO DA ESCADA MAIOR) ---
+    // Vão expandido para 16 de profundidade e 7.0 de largura para passagem 100% livre
+    const stairHoleDepth = 16.0; 
+    const stairHoleWidth = 7.0; 
     
-    // Parte do chão que cobre a maior parte do 2º andar
-    const mainFloorDepth = depth - stairHoleDepth - 2;
+    // Parte principal do chão do 2º andar (Recuada para dar espaço ao vão ampliado)
+    const mainFloorDepth = depth - stairHoleDepth - 1;
     const floorTile1 = new THREE.Mesh(new THREE.BoxGeometry(width - 2, 0.6, mainFloorDepth), mat);
-    floorTile1.position.set(x, floorH, z + (stairHoleDepth / 2) - 1);
+    floorTile1.position.set(x, floorH, z + (stairHoleDepth / 2) - 0.5);
     floorTile1.receiveShadow = true; floorTile1.castShadow = true;
     scene.add(floorTile1);
     collidables.push(new THREE.Box3().setFromObject(floorTile1));
@@ -781,16 +782,15 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     wallMeshes.push(floorTile2); mapWallMeshes.push(floorTile2);
 
     // --- ESCADA / RAMPA INTERNA ---
-    // A rampa agora começa no térreo e sobe POR DENTRO até o buraco do 2º andar
-    const rampLength = 14; 
+    const rampLength = 15; 
     const rampWidth = 5.0;
     const rampGeo = new THREE.BoxGeometry(rampWidth, 0.4, rampLength);
     const ramp = new THREE.Mesh(rampGeo, trimMat);
     
     const angle = Math.atan2(floorH, rampLength - 2);
-    // Posicionada internamente no fundo do prédio
+    // Posicionada internamente no fundo do prédio, subindo direto para o vão ampliado
     ramp.position.set(x + (width / 2) - (rampWidth / 2) - 2, (floorH / 2) - 0.2, z - (depth / 2) + (rampLength / 2) + 1.5);
-    ramp.rotation.x = -angle; // Inclinada subindo para dentro
+    ramp.rotation.x = -angle;
     
     ramp.receiveShadow = true; ramp.castShadow = true;
     ramp.userData.isRamp = true; 
@@ -1173,60 +1173,95 @@ function updateBotLogic(delta, time) {
 
     for (let bot of bots) {
         if (!bot.mesh) continue;
-        
+
         const botEyes = bot.mesh.position.clone().add(new THREE.Vector3(0, 1.6, 0));
-        const playerCenter = camera.position.clone().add(new THREE.Vector3(0, -0.4, 0));
-        const dist = botEyes.distanceTo(playerCenter);
         
+        // Testamos 3 pontos do jogador: Cabeça, Tronco e Pés
+        const targetPoints = [
+            camera.position.clone(), // Cabeça
+            camera.position.clone().add(new THREE.Vector3(0, -0.9, 0)), // Tronco
+            camera.position.clone().add(new THREE.Vector3(0, -1.6, 0))  // Pés
+        ];
+
         let hasLOS = false;
-        const dirToPlayer = new THREE.Vector3().subVectors(playerCenter, botEyes).normalize();
-        
-        // Raycast checando recursivamente todas as paredes e construções
-        const ray = new THREE.Raycaster(botEyes, dirToPlayer);
-        const hits = ray.intersectObjects(mapWallMeshes, true);
-        
-        if (hits.length === 0 || hits[0].distance >= dist) {
-            hasLOS = true;
+        const distToPlayer = botEyes.distanceTo(camera.position);
+
+        // Se o jogador estiver muito longe (mais de 65m), o bot nem tenta olhar
+        if (distToPlayer < 65) {
+            for (let targetPoint of targetPoints) {
+                const dirToTarget = new THREE.Vector3().subVectors(targetPoint, botEyes);
+                const distToTarget = dirToTarget.length();
+                dirToTarget.normalize();
+
+                // Raycast mirando na direção do ponto do jogador
+                const ray = new THREE.Raycaster(botEyes, dirToTarget, 0, distToTarget);
+                
+                // Forçamos a atualização da matriz do mapa para precisão milimétrica
+                const hits = ray.intersectObjects(wallMeshes, false);
+
+                // Se NÃO houver parede entre os olhos do bot e o ponto do jogador, ele te viu!
+                if (hits.length === 0) {
+                    hasLOS = true;
+                    break; // Já confirmou visão
+                }
+            }
         }
 
         bot.mesh.lookAt(camera.position.x, bot.mesh.position.y, camera.position.z);
 
-        if (hasLOS && dist < 50) {
-            if (time - bot.lastShot > 850) { 
+        // Se tem Linha de Visão Limpa
+        if (hasLOS) {
+            // Cadência de tiro baseada na distância
+            if (time - bot.lastShot > 800) { 
                 bot.lastShot = time; 
                 playShootSound(); 
                 
-                const hitChance = Math.max(0.25, 0.85 - (dist / 60));
+                // Quanto mais longe você estiver, menor a chance do bot te acertar
+                const hitChance = Math.max(0.15, 0.80 - (distToPlayer / 70));
                 if (Math.random() < hitChance) {
-                    takeDamage(15, botEyes); 
+                    takeDamage(12, botEyes); 
                 }
             }
             
+            // Movimento lateral (Strafe) enquanto atira em você
+            const dirToPlayer = new THREE.Vector3().subVectors(camera.position, botEyes).normalize();
             const strafeVetor = new THREE.Vector3().crossVectors(dirToPlayer, new THREE.Vector3(0,1,0)).normalize();
             const oldPos = bot.mesh.position.clone();
             bot.mesh.position.addScaledVector(strafeVetor, 3.5 * bot.strafeDir * delta);
             
+            // Colisão do bot com paredes ao andar de lado
             botBox.setFromCenterAndSize(bot.mesh.position, new THREE.Vector3(1.2, 1.8, 1.2));
             for (let box of collidables) {
-                if (botBox.intersectsBox(box)) { bot.mesh.position.copy(oldPos); bot.strafeDir *= -1; break; }
+                if (botBox.intersectsBox(box)) { 
+                    bot.mesh.position.copy(oldPos); 
+                    bot.strafeDir *= -1; 
+                    break; 
+                }
             }
             if (Math.random() < 0.01) bot.strafeDir *= -1;
-        } else {
+        } 
+        // Se NÃO tem Linha de Visão (Você está atrás da parede/prédio)
+        else {
+            // Bot apenas anda para frente explorando o mapa
             const oldPos = bot.mesh.position.clone();
             const moveVetor = new THREE.Vector3();
             bot.mesh.getWorldDirection(moveVetor); moveVetor.y = 0; moveVetor.normalize();
 
-            bot.mesh.position.addScaledVector(moveVetor, 5.0 * delta); 
+            bot.mesh.position.addScaledVector(moveVetor, 4.5 * delta); 
             
             botBox.setFromCenterAndSize(bot.mesh.position, new THREE.Vector3(1.2, 1.8, 1.2));
             let collides = false;
             for (let box of collidables) {
-                if (botBox.intersectsBox(box)) { collides = true; break; }
+                if (botBox.intersectsBox(box)) { 
+                    collides = true; 
+                    break; 
+                }
             }
             
+            // Se o bot bater numa parede enquanto anda, ele gira
             if (collides) {
                 bot.mesh.position.copy(oldPos);
-                bot.mesh.translateX(1.0 * bot.strafeDir); 
+                bot.mesh.rotation.y += Math.PI * 0.5 * (bot.strafeDir || 1); 
                 bot.strafeDir *= -1;
             }
         }
