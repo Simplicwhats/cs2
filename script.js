@@ -125,11 +125,41 @@ const container = document.getElementById('canvas-container');
 const pauseScreen = document.getElementById('pause-screen');
 const buyMenu = document.getElementById('buy-menu');
 
-// Zonas seguras na rua sem interseção com prédios
+// Spawns ampliados e distribuídos estrategicamente
 const safeSpawns = [
-    {x: 0, z: 0}, {x: 30, z: 0}, {x: -30, z: 0}, {x: 0, z: 30}, {x: 0, z: -30},
-    {x: 50, z: 50}, {x: -50, z: -50}, {x: 50, z: -50}, {x: -50, z: 50}
+    {x: 0, z: 0}, {x: 40, z: 20}, {x: -40, z: -20}, {x: 20, z: -40}, {x: -20, z: 40},
+    {x: 80, z: 15}, {x: -80, z: -15}, {x: 15, z: -80}, {x: -15, z: 80},
+    {x: 100, z: 100}, {x: -100, z: -100}, {x: 100, z: -100}, {x: -100, z: 100}
 ];
+
+let usedSpawns = [];
+
+function getSafeSpawn(avoidPos) {
+    let bestPoint = safeSpawns[0];
+    let found = false;
+
+    // Tenta encontrar um ponto não ocupado e longe de avoidPos
+    for (let pt of safeSpawns) {
+        let testVec = new THREE.Vector3(pt.x, 1.8, pt.z);
+        let tooCloseToAvoid = avoidPos && avoidPos.distanceTo(testVec) < 20;
+        let alreadyUsed = usedSpawns.some(u => u.distanceTo(testVec) < 8);
+
+        if (!tooCloseToAvoid && !alreadyUsed) {
+            bestPoint = pt;
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        let randomIndex = Math.floor(Math.random() * safeSpawns.length);
+        bestPoint = safeSpawns[randomIndex];
+    }
+
+    let spawnVec = new THREE.Vector3(bestPoint.x, 1.8, bestPoint.z);
+    usedSpawns.push(spawnVec);
+    return spawnVec;
+}
 
 const urlParams = new URLSearchParams(window.location.search);
 if (urlParams.get('room')) {
@@ -158,7 +188,7 @@ function setGameMode(mode) {
         btnStart.disabled = false;
         btnStart.innerText = "INICIAR PARTIDA";
     } else {
-        maxClients = mode === '1v1' ? 1 : 2; // 2 clientes + host = 3 players
+        maxClients = mode === '1v1' ? 1 : 2;
         document.getElementById('net-link-section').style.display = 'block';
         updateLobbyStatus();
     }
@@ -229,7 +259,7 @@ function handleData(senderId, data) {
     }
     if (data.type === 'pos_update') {
         if (!networkPlayers[peerId]) createNetworkPlayer(peerId, data.nick || "Inimigo");
-        networkPlayers[peerId].position.set(data.x, data.y, data.z);
+        networkPlayers[peerId].position.set(data.x, data.y - 1.8, data.z);
         networkPlayers[peerId].rotation.y = data.ry;
     }
     if (data.type === 'shoot') {
@@ -265,24 +295,24 @@ function createNetworkPlayer(id, nick) {
     const matGun = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.3 });
 
     const legGeo = new THREE.BoxGeometry(0.22, 0.9, 0.25);
-    const legLeft = new THREE.Mesh(legGeo, matUniform); legLeft.position.set(-0.13, 0.45, 0);
-    const legRight = new THREE.Mesh(legGeo, matUniform); legRight.position.set(0.13, 0.45, 0);
+    const legLeft = new THREE.Mesh(legGeo, matUniform); legLeft.position.set(-0.13, 0.45, 0); legLeft.castShadow = true;
+    const legRight = new THREE.Mesh(legGeo, matUniform); legRight.position.set(0.13, 0.45, 0); legRight.castShadow = true;
 
     const torsoGeo = new THREE.BoxGeometry(0.5, 0.75, 0.3);
-    const torso = new THREE.Mesh(torsoGeo, matUniform); torso.position.set(0, 1.25, 0);
+    const torso = new THREE.Mesh(torsoGeo, matUniform); torso.position.set(0, 1.25, 0); torso.castShadow = true;
 
     const vestGeo = new THREE.BoxGeometry(0.52, 0.5, 0.32);
     const vest = new THREE.Mesh(vestGeo, matVest); vest.position.set(0, 1.3, 0);
 
     const headGeo = new THREE.BoxGeometry(0.28, 0.32, 0.28);
-    const head = new THREE.Mesh(headGeo, matSkin); head.position.set(0, 1.82, 0);
+    const head = new THREE.Mesh(headGeo, matSkin); head.position.set(0, 1.82, 0); head.castShadow = true;
 
     const helmetGeo = new THREE.BoxGeometry(0.32, 0.18, 0.32);
     const helmet = new THREE.Mesh(helmetGeo, matHelmet); helmet.position.set(0, 1.93, 0);
 
     const armGeo = new THREE.BoxGeometry(0.18, 0.7, 0.18);
-    const armLeft = new THREE.Mesh(armGeo, matUniform); armLeft.position.set(-0.36, 1.25, 0);
-    const armRight = new THREE.Mesh(armGeo, matUniform); armRight.position.set(0.36, 1.25, 0);
+    const armLeft = new THREE.Mesh(armGeo, matUniform); armLeft.position.set(-0.36, 1.25, 0); armLeft.castShadow = true;
+    const armRight = new THREE.Mesh(armGeo, matUniform); armRight.position.set(0.36, 1.25, 0); armRight.castShadow = true;
 
     const rifleGeo = new THREE.BoxGeometry(0.1, 0.12, 0.7);
     const rifle = new THREE.Mesh(rifleGeo, matGun); rifle.position.set(0.2, 1.05, -0.25); rifle.rotation.x = 0.2;
@@ -435,22 +465,39 @@ function getCurrentWeaponKey() {
 
 function initGameEngine() {
     scene = new THREE.Scene();
+    usedSpawns = [];
     
-    let bgColor = 0xd6e4f0;
-    if(selectedMap === 'mirage') bgColor = 0xaecce8;
-    if(selectedMap === 'inferno') bgColor = 0x5a6978;
-    if(selectedMap === 'nuke') bgColor = 0x4a5568;
+    let bgColor = 0x87ceeb; // Céu azul padrão suave
+    if(selectedMap === 'mirage') bgColor = 0x729ec2;
+    if(selectedMap === 'inferno') bgColor = 0x4a5a6a;
+    if(selectedMap === 'nuke') bgColor = 0x3d4853;
     
     scene.background = new THREE.Color(bgColor);
-    scene.fog = new THREE.FogExp2(bgColor, 0.002);
+    scene.fog = new THREE.FogExp2(bgColor, 0.003);
 
     camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.copy(getSafeSpawn(null)); 
+    const startSpawn = getSafeSpawn(null);
+    camera.position.copy(startSpawn); 
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.85); scene.add(ambientLight);
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x666677, 1.1); hemiLight.position.set(0, 100, 0); scene.add(hemiLight);
-    const dirLight = new THREE.DirectionalLight(0xfffaee, 1.4);
-    dirLight.position.set(120, 250, 120); dirLight.castShadow = true;
+    // Iluminação ajustada para tirar o aspecto "branco demais"
+    const ambientLight = new THREE.AmbientLight(0xddeeff, 0.45); 
+    scene.add(ambientLight);
+    
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444455, 0.5); 
+    hemiLight.position.set(0, 100, 0); 
+    scene.add(hemiLight);
+    
+    const dirLight = new THREE.DirectionalLight(0xfff5ea, 0.8);
+    dirLight.position.set(80, 150, 80); 
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 2048;
+    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.near = 0.5;
+    dirLight.shadow.camera.far = 300;
+    dirLight.shadow.camera.left = -100;
+    dirLight.shadow.camera.right = 100;
+    dirLight.shadow.camera.top = 100;
+    dirLight.shadow.camera.bottom = -100;
     scene.add(dirLight);
 
     buildMapGeometries();
@@ -469,15 +516,18 @@ function initGameEngine() {
             const botId = 'bot_' + i;
             createNetworkPlayer(botId, "Bot " + i);
             let bMesh = networkPlayers[botId];
-            let bPos = getSafeSpawn(camera.position);
-            bMesh.position.copy(bPos);
+            
+            let bSpawn = getSafeSpawn(camera.position);
+            // Bots no chão certinho (Y = 0)
+            bMesh.position.set(bSpawn.x, 0, bSpawn.z);
+            
             bots.push({
                 id: botId,
                 mesh: bMesh,
                 hp: 100,
                 lastShot: 0,
                 strafeDir: (i % 2 === 0 ? 1 : -1),
-                pos: bPos
+                pos: bMesh.position
             });
         }
     }
@@ -518,7 +568,6 @@ function initGameEngine() {
         if (e.code === 'KeyG') throwGrenade();
         if (!pointerLocked || buyMenuOpen) return;
 
-        // Duplo Clique no W para Correr
         if (e.code === 'KeyW' && !moveF) {
             const now = performance.now();
             if (now - lastWPressTime < 280) {
@@ -570,74 +619,70 @@ function initGameEngine() {
     });
 }
 
-function getSafeSpawn(avoidPos) {
-    let bestPoint = safeSpawns[0];
-    let attempts = 0;
-    while(attempts < 10) {
-        let pt = safeSpawns[Math.floor(Math.random() * safeSpawns.length)];
-        let testVec = new THREE.Vector3(pt.x, 1.8, pt.z);
-        if(!avoidPos || avoidPos.distanceTo(testVec) > 25) { bestPoint = pt; break; }
-        attempts++;
-    }
-    return new THREE.Vector3(bestPoint.x, 1.8, bestPoint.z);
-}
-
-// TEXTURA DE PAREDE LIMPA
-function createWallTexture(baseColor) {
-    const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256;
+// TEXTURA DE PAREDE E PISO DETALHADAS
+function createWallTexture(baseColor, gridColor = "rgba(0,0,0,0.25)") {
+    const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = baseColor; ctx.fillRect(0, 0, 256, 256);
-    ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = 4;
-    ctx.strokeRect(0, 0, 256, 256);
+    ctx.fillStyle = baseColor; ctx.fillRect(0, 0, 512, 512);
+    
+    // Padrão de blocos/tijolos
+    ctx.strokeStyle = gridColor; 
+    ctx.lineWidth = 4;
+    for(let i = 0; i <= 512; i += 64) {
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(512, i); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 512); ctx.stroke();
+    }
+    
     const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(2, 2);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping; 
+    tex.repeat.set(2, 2);
     return tex;
 }
 
 function buildMapGeometries() {
     collidables = []; wallMeshes = []; mapWallMeshes = [];
     
-    let fColor, wColor, bColor;
+    let fColor, wColor, bColor, trimColor;
     
     if(selectedMap === 'dust2') {
-        fColor = 0xc9a87d; wColor = '#d6c29a'; bColor = '#8c6747';
+        fColor = 0xb59268; wColor = '#c2a882'; bColor = '#8a6543'; trimColor = '#5c4128';
     } else if(selectedMap === 'mirage') {
-        fColor = 0xb09b7b; wColor = '#e0d0b0'; bColor = '#5a7694';
+        fColor = 0x8c7c68; wColor = '#b8a68d'; bColor = '#4a607a'; trimColor = '#2b3a4a';
     } else if(selectedMap === 'inferno') {
-        fColor = 0x555555; wColor = '#a84b38'; bColor = '#7c9683';
+        fColor = 0x474747; wColor = '#8a3c2c'; bColor = '#5e7363'; trimColor = '#3a2118';
     } else { // Nuke
-        fColor = 0x2b3036; wColor = '#708090'; bColor = '#427aa1';
+        fColor = 0x22272c; wColor = '#5a6978'; bColor = '#2d5573'; trimColor = '#1a2228';
     }
 
-    const fMat = new THREE.MeshStandardMaterial({ color: fColor, roughness: 0.9 });
-    const wMat = new THREE.MeshStandardMaterial({ map: createWallTexture(wColor), roughness: 0.8 });
-    const bMat = new THREE.MeshStandardMaterial({ map: createWallTexture(bColor), roughness: 0.8 });
+    const fMat = new THREE.MeshStandardMaterial({ map: createWallTexture('#' + fColor.toString(16), "rgba(0,0,0,0.15)"), roughness: 0.8 });
+    const wMat = new THREE.MeshStandardMaterial({ map: createWallTexture(wColor), roughness: 0.7 });
+    const bMat = new THREE.MeshStandardMaterial({ map: createWallTexture(bColor), roughness: 0.7 });
+    const trimMat = new THREE.MeshStandardMaterial({ color: trimColor, roughness: 0.5 });
 
     // Chão Principal
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(300, 300), fMat);
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 
-    // Muros Delimitadores da Cidade
-    createBlock(0, 10, -150, 300, 20, 2, wMat); 
-    createBlock(0, 10, 150, 300, 20, 2, wMat);
-    createBlock(-150, 10, 0, 2, 20, 300, wMat); 
-    createBlock(150, 10, 0, 2, 20, 300, wMat);
+    // Muros Delimitadores
+    createBlock(0, 10, -150, 300, 20, 4, wMat); 
+    createBlock(0, 10, 150, 300, 20, 4, wMat);
+    createBlock(-150, 10, 0, 4, 20, 300, wMat); 
+    createBlock(150, 10, 0, 4, 20, 300, wMat);
 
-    // PRÉDIOS ESTRUTURADOS COM JANELAS VAZADAS E RAMPAS INTERNAS
+    // PRÉDIOS ESTRUTURADOS E ESTÉTICOS
     const cityLayout = [
-        {x: -70, z: 70, w: 30, d: 30, h: 24, mat: wMat},
-        {x: 70, z: 70, w: 30, d: 30, h: 24, mat: bMat},
-        {x: -70, z: -70, w: 30, d: 30, h: 24, mat: bMat},
-        {x: 70, z: -70, w: 30, d: 30, h: 24, mat: wMat}
+        {x: -60, z: 60, w: 28, d: 28, h: 22, mat: wMat},
+        {x: 60, z: 60, w: 28, d: 28, h: 22, mat: bMat},
+        {x: -60, z: -60, w: 28, d: 28, h: 22, mat: bMat},
+        {x: 60, z: -60, w: 28, d: 28, h: 22, mat: wMat}
     ];
 
     cityLayout.forEach(b => {
-        createFunctionalBuilding(b.x, b.z, b.w, b.d, b.h, b.mat);
+        createFunctionalBuilding(b.x, b.z, b.w, b.d, b.h, b.mat, trimMat);
     });
 
-    // ADICIONANDO PROPAGAÇÃO DE OBJETOS ESPECÍFICOS POR MAPA
+    // PROPAGAÇÃO DE OBJETOS ESPECÍFICOS POR MAPA
     if (selectedMap === 'dust2') {
-        // Caixas de Madeira do Deserto
         const boxMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.8 });
         createBlock(15, 2, 15, 4, 4, 4, boxMat);
         createBlock(-20, 2, 30, 5, 4, 5, boxMat);
@@ -645,18 +690,15 @@ function buildMapGeometries() {
         createCactus(-35, 15); createCactus(40, -25);
     } 
     else if (selectedMap === 'mirage') {
-        // Árvores e Bancos Urbanos
         createTree(-20, 20); createTree(25, -20); createTree(-30, -30);
         const benchMat = new THREE.MeshStandardMaterial({ color: 0x4a2e18 });
-        createBlock(10, 1, 30, 6, 1.5, 2, benchMat);
-        createBlock(-10, 1, -30, 6, 1.5, 2, benchMat);
+        createBlock(10, 0.75, 30, 6, 1.5, 2, benchMat);
+        createBlock(-10, 0.75, -30, 6, 1.5, 2, benchMat);
     } 
     else if (selectedMap === 'inferno') {
-        // Vilarejo com Árvores densas e paredes rústicas
         createTree(-15, 40); createTree(20, -40); createTree(40, 20); createTree(-40, -15);
     } 
     else if (selectedMap === 'nuke') {
-        // Barris Industriais e Caixas Metálicas
         const metalMat = new THREE.MeshStandardMaterial({ color: 0x445566, metalness: 0.8, roughness: 0.3 });
         createBlock(20, 2, 0, 4, 4, 8, metalMat);
         createBlock(-20, 2, 0, 4, 4, 8, metalMat);
@@ -664,40 +706,50 @@ function buildMapGeometries() {
     }
 }
 
-// PRÉDIO COM INTERIOR ACESSÍVEL, RAMPAS E JANELAS VAZADAS
-function createFunctionalBuilding(x, z, width, depth, height, mat) {
-    const wallT = 1.5;
-    const floorH = height / 2;
-    const winW = 6, winH = 4, winY = 4;
+// PRÉDIO REFORMADO COM RAMPA SUAVE DE SUBIDA
+function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat) {
+    const wallT = 1.2;
+    const floorH = 9.0; // Altura ideal para o 2º Andar
 
-    // Paredes Frontal e Traseira com Janelas Vazadas
-    // Parede Frontal (Dividida para criar janela)
-    createBlock(x - width/4 - 1, winY/2, z + depth/2, width/2 - 2, winY, wallT, mat);
-    createBlock(x + width/4 + 1, winY/2, z + depth/2, width/2 - 2, winY, wallT, mat);
-    createBlock(x, winY + winH + (floorH - winY - winH)/2, z + depth/2, width, floorH - winY - winH, wallT, mat);
-
-    // Parede Traseira Completa
+    // 1. Parede Traseira
     createBlock(x, height/2, z - depth/2, width, height, wallT, mat);
-
-    // Lado Esquerdo e Lado Direito
+    
+    // 2. Paredes Laterais
     createBlock(x - width/2, height/2, z, wallT, height, depth, mat);
     createBlock(x + width/2, height/2, z, wallT, height, depth, mat);
 
-    // Laje do 2º Andar com abertura para a Rampa
-    createBlock(x - 3, floorH, z, width - 8, 0.5, depth - 2, mat);
+    // 3. Parede Frontal (com entrada no térreo e janela vazada no andar de cima)
+    createBlock(x - width/3, floorH/2, z + depth/2, width/3, floorH, wallT, mat);
+    createBlock(x + width/3, floorH/2, z + depth/2, width/3, floorH, wallT, mat);
+    createBlock(x, floorH + (height - floorH)/2, z + depth/2, width, height - floorH, wallT, mat);
 
-    // Rampa de Acesso ao 2º Andar
-    const rampGeo = new THREE.BoxGeometry(6, 0.4, floorH * 1.5);
-    const ramp = new THREE.Mesh(rampGeo, mat);
-    ramp.position.set(x + width/2 - 5, floorH/2, z);
-    ramp.rotation.x = 0.45;
+    // Moldura decorativa do topo (Acabamento estético)
+    createBlock(x, height + 0.5, z, width + 0.5, 1.0, depth + 0.5, trimMat);
+
+    // 4. Laje do 2º Andar (com abertura retangular para a rampa)
+    const floorTile1 = new THREE.Mesh(new THREE.BoxGeometry(width - 8, 0.6, depth - 2), mat);
+    floorTile1.position.set(x - 3, floorH, z);
+    floorTile1.receiveShadow = true; floorTile1.castShadow = true;
+    scene.add(floorTile1);
+    collidables.push(new THREE.Box3().setFromObject(floorTile1));
+    wallMeshes.push(floorTile1); mapWallMeshes.push(floorTile1);
+
+    // 5. RAMPA INTERNA SUAVE E ACESSÍVEL (Inclinada perfeitamente)
+    const rampLength = 18; 
+    const rampGeo = new THREE.BoxGeometry(5.5, 0.4, rampLength);
+    const ramp = new THREE.Mesh(rampGeo, trimMat);
+    
+    // Posiciona e inclina suavemente (ângulo suave de subida)
+    ramp.position.set(x + width/2 - 4.5, floorH / 2, z);
+    ramp.rotation.x = Math.atan2(floorH, rampLength); 
+    
     ramp.receiveShadow = true; ramp.castShadow = true;
     scene.add(ramp);
     collidables.push(new THREE.Box3().setFromObject(ramp));
     wallMeshes.push(ramp); mapWallMeshes.push(ramp);
 }
 
-// ELEMENTOS DE CENÁRIO (ÁRVORES, CACTOS E BARRIS)
+// ELEMENTOS DE CENÁRIO 
 function createTree(x, z) {
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 6), new THREE.MeshStandardMaterial({color: 0x4a2e18}));
     trunk.position.set(x, 3, z); trunk.castShadow = true; scene.add(trunk);
@@ -782,7 +834,8 @@ function updateGrenades(delta, time) {
                             playerMoney += 300; updateHUD(); updateScoreboard();
                             showKillFeed("+ $300 (Granada HE)");
                             bot.hp = 100;
-                            bot.pos.copy(getSafeSpawn(camera.position)); 
+                            let newPos = getSafeSpawn(camera.position);
+                            bot.pos.set(newPos.x, 0, newPos.z); 
                             bot.mesh.position.copy(bot.pos);
                         }
                     }
@@ -902,7 +955,8 @@ function shoot() {
                         playerMoney += 300; updateHUD(); updateScoreboard();
                         showKillFeed("+ $300 (Eliminação)");
                         bot.hp = 100;
-                        bot.pos.copy(getSafeSpawn(camera.position)); 
+                        let newPos = getSafeSpawn(camera.position);
+                        bot.pos.set(newPos.x, 0, newPos.z); 
                         bot.mesh.position.copy(bot.pos);
                     }
                     break;
@@ -935,7 +989,7 @@ function shoot() {
     }
 }
 
-// SISTEMA DE DANO E PROTEÇÃO FUNCIONAL COM COLETE E CAPACETE
+// SISTEMA DE DANO E PROTEÇÃO FUNCIONAL
 function takeDamage(dmg, sourcePos) {
     if (isDead || isInvulnerable) return;
 
@@ -943,13 +997,9 @@ function takeDamage(dmg, sourcePos) {
     const isHeadshot = sourcePos && (sourcePos.y > camera.position.y + 0.2);
 
     if (isHeadshot) {
-        if (hasHelmet) {
-            finalDmg *= 0.4; // Capacete reduz 60% do dano na cabeça
-        }
+        if (hasHelmet) finalDmg *= 0.4;
     } else {
-        if (hasArmor) {
-            finalDmg *= 0.65; // Colete reduz 35% do dano corporal
-        }
+        if (hasArmor) finalDmg *= 0.65;
     }
 
     hp -= finalDmg;
@@ -1014,12 +1064,15 @@ function restartRound() {
 
     updateHUD();
     build3DWeapon();
+    
+    usedSpawns = [];
     camera.position.copy(getSafeSpawn(null)); 
     
     if (gameMode === 'bot') {
         bots.forEach((bot) => {
             bot.hp = 100;
-            bot.pos.copy(getSafeSpawn(camera.position));
+            let bSpawn = getSafeSpawn(camera.position);
+            bot.pos.set(bSpawn.x, 0, bSpawn.z);
             bot.mesh.position.copy(bot.pos);
         });
     }
@@ -1056,7 +1109,7 @@ function updateBotLogic(delta, time) {
         
         let hasLOS = false;
         const dirToPlayer = new THREE.Vector3().subVectors(camera.position, bot.mesh.position).normalize();
-        const ray = new THREE.Raycaster(new THREE.Vector3().copy(bot.mesh.position).add(new THREE.Vector3(0,0.8,0)), dirToPlayer);
+        const ray = new THREE.Raycaster(new THREE.Vector3().copy(bot.mesh.position).add(new THREE.Vector3(0,1.2,0)), dirToPlayer);
         const hits = ray.intersectObjects(mapWallMeshes);
         if (hits.length === 0 || hits[0].distance >= dist - 1.5) hasLOS = true;
 
@@ -1130,10 +1183,24 @@ function animate() {
         const oldPos = camera.position.clone();
         camera.position.addScaledVector(velocity, delta);
 
+        // Sistema de colisão com detecção de altura para rampas (Ramp Detection)
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
         for (let box of collidables) {
-            if (playerBox.intersectsBox(box)) { camera.position.copy(oldPos); velocity.set(0, 0, 0); break; }
+            if (playerBox.intersectsBox(box)) {
+                // Se a colisão for no nível do chão/pé, permite subir a rampa ajustando Y
+                let boxTop = box.max.y;
+                if (boxTop - (camera.position.y - currentHeight) <= 0.6) {
+                    camera.position.y = boxTop + currentHeight;
+                    velocity.y = 0;
+                    canJump = true;
+                } else {
+                    camera.position.copy(oldPos); 
+                    velocity.set(0, 0, 0); 
+                    break;
+                }
+            }
         }
+
         if (camera.position.y < currentHeight) { camera.position.y = currentHeight; velocity.y = 0; canJump = true; }
 
         if (recoilOffset > 0 && (time - lastShotTime > 100)) {
