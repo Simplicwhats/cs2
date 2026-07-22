@@ -669,7 +669,7 @@ function buildMapGeometries() {
     }
 
     const hexFloor = '#' + fColor.toString(16).padStart(6, '0');
-    const fMat = new THREE.MeshStandardMaterial({ map: createWallTexture(hexFloor, "rgba(0,0,0,0.15)", 'grid'), roughness: 0.8 });
+    const fMat = new THREE.MeshStandardMaterial({ map: createWallTexture('#' + fColor.toString(16), "rgba(0,0,0,0.15)", 'grid'), roughness: 0.8 });
     const wMat = new THREE.MeshStandardMaterial({ map: createWallTexture(wColor, "rgba(0,0,0,0.2)", 'brick'), roughness: 0.7 });
     const bMat = new THREE.MeshStandardMaterial({ map: createWallTexture(bColor, "rgba(0,0,0,0.25)", 'grid'), roughness: 0.7 });
     const trimMat = new THREE.MeshStandardMaterial({ color: trimColor, roughness: 0.5 });
@@ -678,7 +678,6 @@ function buildMapGeometries() {
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(320, 320), fMat);
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 
-    // Borda do mapa
     createBlock(0, 12, -160, 320, 24, 4, wMat); 
     createBlock(0, 12, 160, 320, 24, 4, wMat);
     createBlock(-160, 12, 0, 4, 24, 320, wMat); 
@@ -701,7 +700,6 @@ function buildMapGeometries() {
         createFunctionalBuilding(b.x, b.z, b.w, b.d, b.h, b.mat, trimMat, winMat, b.hasBalcony);
     });
 
-    // Posições ajustadas para NUNCA ficarem dentro de prédios
     if (selectedMap === 'dust2') {
         const boxMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.8 });
         createBlock(15, 2, 15, 4, 4, 4, boxMat);
@@ -730,45 +728,58 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     const wallT = 1.2;
     const floorH = 8.0; 
 
-    // Paredes exteriores
+    // Paredes de contorno
     createBlock(x, height/2, z - depth/2, width, height, wallT, mat); 
     createBlock(x - width/2, height/2, z, wallT, height, depth, mat); 
     createBlock(x + width/2, height/2, z, wallT, height, depth, mat); 
 
-    // Parede frontal com espaço de entrada amplo no 2º andar
+    // Entrada frontal ampla e livre no 2º andar
     createBlock(x - width/3, floorH/2, z + depth/2, width/3, floorH, wallT, mat);
     createBlock(x + width/3, floorH/2, z + depth/2, width/3, floorH, wallT, mat);
-    // Vão da porta/passagem do 2º andar aumentado (altura extra no teto da entrada)
-    createBlock(x, floorH + (height - floorH) * 0.85, z + depth/2, width, (height - floorH) * 0.3, wallT, mat);
+    
+    // Moldura no topo sem bloquear a passagem da rampa
+    createBlock(x, height - 1.0, z + depth/2, width, 2.0, wallT, mat);
 
-    // Piso Interno do 2º Andar
+    const winGeo = new THREE.BoxGeometry(0.2, 2.5, 2.0);
+    const winLeft = new THREE.Mesh(winGeo, winMat);
+    winLeft.position.set(x - width/2 - 0.1, floorH + 2, z);
+    scene.add(winLeft);
+
+    const winRight = new THREE.Mesh(winGeo, winMat);
+    winRight.position.set(x + width/2 + 0.1, floorH + 2, z);
+    scene.add(winRight);
+
+    createBlock(x, height + 0.5, z, width + 0.5, 1.0, depth + 0.5, trimMat);
+
     const floorTile1 = new THREE.Mesh(new THREE.BoxGeometry(width - 2, 0.6, depth - 4), mat);
-    floorTile1.position.set(x, floorH, z);
+    floorTile1.position.set(x, floorH, z - 1);
     floorTile1.receiveShadow = true; floorTile1.castShadow = true;
     scene.add(floorTile1);
     collidables.push(new THREE.Box3().setFromObject(floorTile1));
     wallMeshes.push(floorTile1); mapWallMeshes.push(floorTile1);
 
     if (addBalcony) {
-        const balcDepth = 5.0;
-        const balconyFloor = new THREE.Mesh(new THREE.BoxGeometry(width * 0.7, 0.5, balcDepth), mat);
+        const balcDepth = 4.5;
+        const balconyFloor = new THREE.Mesh(new THREE.BoxGeometry(width * 0.6, 0.5, balcDepth), mat);
         balconyFloor.position.set(x, floorH, z + depth/2 + balcDepth/2);
         balconyFloor.receiveShadow = true; balconyFloor.castShadow = true;
         scene.add(balconyFloor);
         collidables.push(new THREE.Box3().setFromObject(balconyFloor));
         wallMeshes.push(balconyFloor); mapWallMeshes.push(balconyFloor);
 
-        createBlock(x, floorH + 0.8, z + depth/2 + balcDepth, width * 0.7, 1.2, 0.4, trimMat);
+        createBlock(x, floorH + 0.8, z + depth/2 + balcDepth, width * 0.6, 1.2, 0.4, trimMat);
+        createBlock(x - (width * 0.3), floorH + 0.8, z + depth/2 + balcDepth/2, 0.4, 1.2, balcDepth, trimMat);
+        createBlock(x + (width * 0.3), floorH + 0.8, z + depth/2 + balcDepth/2, 0.4, 1.2, balcDepth, trimMat);
     }
 
-    // RAMPA LONGA E SUAVE (Fácil acesso ao 2º Andar)
-    const rampLength = 26; 
-    const rampWidth = 6.5;
+    // Rampa suave de acesso ao 2º andar
+    const rampLength = 22; 
+    const rampWidth = 5.5;
     const rampGeo = new THREE.BoxGeometry(rampWidth, 0.4, rampLength);
     const ramp = new THREE.Mesh(rampGeo, trimMat);
     
     const angle = Math.atan2(floorH, rampLength);
-    ramp.position.set(x, floorH / 2, z + depth/2 + (rampLength/2) - 2);
+    ramp.position.set(x, (floorH / 2) - 0.2, z + depth/2 + (rampLength / 2) - 3.5);
     ramp.rotation.x = angle;
     
     ramp.receiveShadow = true; ramp.castShadow = true;
@@ -776,6 +787,7 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     scene.add(ramp);
     wallMeshes.push(ramp); mapWallMeshes.push(ramp);
 }
+
 function createTree(x, z) {
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 6), new THREE.MeshStandardMaterial({color: 0x4a2e18, roughness: 0.9}));
     trunk.position.set(x, 3, z); trunk.castShadow = true; scene.add(trunk);
@@ -856,12 +868,16 @@ function updateGrenades(delta, time) {
                         bot.hp -= 90;
                         if (bot.hp <= 0) {
                             const myId = isHost ? 'host' : peer.id;
-                            playerScores[myId] = (playerScores[myId] || 0) + 1;
-                            playerMoney += 300; updateHUD(); updateScoreboard();
-                            showKillFeed("+ $300 (Granada HE)");
+                            if (typeof playerScores !== 'undefined') playerScores[myId] = (playerScores[myId] || 0) + 1;
+                            
+                            // Recompensa de Eliminação (HP + Dinheiro)
+                            hp = Math.min(100, hp + 30);
+                            playerMoney += 300; updateHUD(); if (typeof updateScoreboard === 'function') updateScoreboard();
+                            showKillFeed("+ $300 | +30 HP (Granada HE)");
+                            
                             bot.hp = 100;
                             let newPos = getSafeSpawn(camera.position);
-                            bot.pos.set(newPos.x, 0, newPos.z); 
+                            bot.pos.set(newPos.x, 0.9, newPos.z); 
                             bot.mesh.position.copy(bot.pos);
                         }
                     }
@@ -941,15 +957,6 @@ function createBulletTracer(startPos, endPos) {
     setTimeout(() => scene.remove(line), 60);
 }
 
-function grantKillReward() {
-    const healAmount = 30;
-    hp = Math.min(100, hp + healAmount); // Recupera 30 HP até o limite de 100
-    playerMoney += 300; 
-    updateHUD(); 
-    updateScoreboard();
-    showKillFeed(`+ $300 | +${healAmount} HP (Eliminação)`);
-}
-
 function shoot() {
     if(isDead || buyMenuOpen || inventory[activeSlot].ammo <= 0) return;
     const now = performance.now(), curKey = getCurrentWeaponKey(), cfg = itemsConfig[curKey];
@@ -986,23 +993,46 @@ function shoot() {
                     bot.hp -= cfg.damage; hitPlayer = true;
                     if (bot.hp <= 0) {
                         const myId = isHost ? 'host' : peer.id;
-                        playerScores[myId] = (playerScores[myId] || 0) + 1;
+                        if (typeof playerScores !== 'undefined') playerScores[myId] = (playerScores[myId] || 0) + 1;
                         
-                        // RECUPERA VIDA E DINHEIRO AO MATAR BOT
-                        grantKillReward();
+                        // Recupera +30 HP e ganha dinheiro ao matar bot
+                        hp = Math.min(100, hp + 30);
+                        playerMoney += 300; updateHUD(); if (typeof updateScoreboard === 'function') updateScoreboard();
+                        showKillFeed("+ $300 | +30 HP (Eliminação)");
                         
                         bot.hp = 100;
                         let newPos = getSafeSpawn(camera.position);
-                        bot.pos.set(newPos.x, 0, newPos.z); 
+                        bot.pos.set(newPos.x, 0.9, newPos.z); 
                         bot.mesh.position.copy(bot.pos);
                     }
                     break;
                 }
             }
+        } 
+        else if (gameMode !== 'bot') {
+            for (let id in networkPlayers) {
+                if (hit.object.parent === networkPlayers[id] || hit.object === networkPlayers[id]) {
+                    broadcastData({ type: 'hit', target: id, dmg: cfg.damage, srcX: camera.position.x, srcY: camera.position.y, srcZ: camera.position.z });
+                    hitPlayer = true; break;
+                }
+            }
+        }
+
+        if(!hitPlayer) {
+            const spark = new THREE.Mesh(new THREE.SphereGeometry(0.03, 4, 4), new THREE.MeshBasicMaterial({color: 0xffdd88}));
+            spark.position.copy(hit.point); scene.add(spark);
+            setTimeout(() => scene.remove(spark), 100);
         }
     }
 
     createBulletTracer(camera.position, endPoint);
+    if (gameMode !== 'bot') {
+        broadcastData({
+            type: 'shoot',
+            sx: camera.position.x, sy: camera.position.y, sz: camera.position.z,
+            ex: endPoint.x, ey: endPoint.y, ez: endPoint.z
+        });
+    }
 }
 
 function takeDamage(dmg, sourcePos) {
@@ -1042,8 +1072,8 @@ function takeDamage(dmg, sourcePos) {
             const myId = isHost ? 'host' : peer.id;
             broadcastData({ type: 'death', killerNick: playerNick, killerId: myId });
         } else { 
-            playerScores['bots'] = (playerScores['bots'] || 0) + 1;
-            updateScoreboard(); 
+            if (typeof playerScores !== 'undefined') playerScores['bots'] = (playerScores['bots'] || 0) + 1;
+            if (typeof updateScoreboard === 'function') updateScoreboard(); 
         }
         const msg = document.getElementById('round-message');
         msg.innerText = "VOCÊ FOI ELIMINADO";
@@ -1061,12 +1091,15 @@ function takeDamage(dmg, sourcePos) {
 function restartRound() {
     hp = 100; isDead = false; lastKillerPos = null;
     playerMoney = 5000; 
-    inventory = { secondary: { key: 'deagle', ammo: 7, reserveAmmo: 35 }, primary: null };
-    activeSlot = 'secondary';
+    inventory = [
+        { name: 'Pistol', ammo: 12, maxAmmo: 12 },
+        { name: 'Rifle', ammo: 30, maxAmmo: 30 }
+    ];
+    activeSlot = 0;
     hasArmor = false; hasHelmet = false; grenadesCount = 0;
     
     isInvulnerable = true;
-    if (invulnerableTimeout) clearTimeout(invulnerableTimeout);
+    if (typeof invulnerableTimeout !== 'undefined' && invulnerableTimeout) clearTimeout(invulnerableTimeout);
     
     const msg = document.getElementById('round-message');
     msg.innerText = "REVIVEU! INVULNERÁVEL POR 3s";
@@ -1080,16 +1113,10 @@ function restartRound() {
     updateHUD();
     build3DWeapon();
     
-    usedSpawns = [];
     camera.position.copy(getSafeSpawn(null)); 
     
     if (gameMode === 'bot') {
-        bots.forEach((bot) => {
-            bot.hp = 100;
-            let bSpawn = getSafeSpawn(camera.position);
-            bot.pos.set(bSpawn.x, 0, bSpawn.z);
-            bot.mesh.position.copy(bot.pos);
-        });
+        spawnBots(8); // Garante 8 bots ao reiniciar a rodada
     }
     
     document.body.requestPointerLock();
@@ -1097,14 +1124,12 @@ function restartRound() {
 
 function reload() {
     const curInv = inventory[activeSlot];
-    const cfg = itemsConfig[curInv.key];
-    if (curInv.ammo === cfg.maxAmmo || curInv.reserveAmmo <= 0) return;
+    const cfg = itemsConfig[curInv.name || getCurrentWeaponKey()];
+    if (curInv.ammo === cfg.maxAmmo) return;
     playReloadSound();
     document.getElementById('ammo').innerText = "--";
     setTimeout(() => {
-        const need = cfg.maxAmmo - curInv.ammo;
-        const add = Math.min(need, curInv.reserveAmmo);
-        curInv.ammo += add; curInv.reserveAmmo -= add;
+        curInv.ammo = cfg.maxAmmo;
         updateHUD();
     }, 1500);
 }
@@ -1115,7 +1140,7 @@ function showKillFeed(txt) {
     setTimeout(() => feed.style.display='none', 2000);
 }
 
-// CORREÇÃO DOS BOTS: LINHA DE VISÃO REAL
+// CORREÇÃO DOS BOTS: LINHA DE VISÃO REAL E TIRO COM MARGEM DE ERRO
 function updateBotLogic(delta, time) {
     if (gameMode !== 'bot' || isDead) return;
 
@@ -1131,11 +1156,10 @@ function updateBotLogic(delta, time) {
         let hasLOS = false;
         const dirToPlayer = new THREE.Vector3().subVectors(playerCenter, botEyes).normalize();
         
-        // Raycast com checagem de parede
+        // Raycast de linha de visão
         const ray = new THREE.Raycaster(botEyes, dirToPlayer);
-        const hits = ray.intersectObjects(mapWallMeshes, true);
+        const hits = ray.intersectObjects(mapWallMeshes, false);
         
-        // Só enxerga se NÃO houver parede entre ele e o jogador
         if (hits.length === 0 || hits[0].distance >= dist) {
             hasLOS = true;
         }
@@ -1143,32 +1167,32 @@ function updateBotLogic(delta, time) {
         bot.mesh.lookAt(camera.position.x, bot.mesh.position.y, camera.position.z);
 
         if (hasLOS && dist < 50) {
-            if (time - bot.lastShot > 900) { 
+            if (time - bot.lastShot > 850) { 
                 bot.lastShot = time; 
                 playShootSound(); 
                 
-                // SISTEMA DE MIRA DO BOT (Não acerta 100% dos tiros)
-                const hitChance = Math.max(0.2, 0.85 - (dist / 60)); // Quanto mais longe, mais ele erra
+                // Chance de acerto diminui com a distância
+                const hitChance = Math.max(0.25, 0.85 - (dist / 60));
                 if (Math.random() < hitChance) {
-                    takeDamage(14, botEyes); 
+                    takeDamage(15, botEyes); 
                 }
             }
             
             const strafeVetor = new THREE.Vector3().crossVectors(dirToPlayer, new THREE.Vector3(0,1,0)).normalize();
             const oldPos = bot.mesh.position.clone();
-            bot.mesh.position.addScaledVector(strafeVetor, 3.0 * bot.strafeDir * delta);
+            bot.mesh.position.addScaledVector(strafeVetor, 3.5 * bot.strafeDir * delta);
             
             botBox.setFromCenterAndSize(bot.mesh.position, new THREE.Vector3(1.2, 1.8, 1.2));
             for (let box of collidables) {
                 if (botBox.intersectsBox(box)) { bot.mesh.position.copy(oldPos); bot.strafeDir *= -1; break; }
             }
+            if (Math.random() < 0.01) bot.strafeDir *= -1;
         } else {
-            // Patrulha normal
             const oldPos = bot.mesh.position.clone();
             const moveVetor = new THREE.Vector3();
             bot.mesh.getWorldDirection(moveVetor); moveVetor.y = 0; moveVetor.normalize();
 
-            bot.mesh.position.addScaledVector(moveVetor, 4.5 * delta); 
+            bot.mesh.position.addScaledVector(moveVetor, 5.0 * delta); 
             
             botBox.setFromCenterAndSize(bot.mesh.position, new THREE.Vector3(1.2, 1.8, 1.2));
             let collides = false;
@@ -1178,6 +1202,7 @@ function updateBotLogic(delta, time) {
             
             if (collides) {
                 bot.mesh.position.copy(oldPos);
+                bot.mesh.translateX(1.0 * bot.strafeDir); 
                 bot.strafeDir *= -1;
             }
         }
@@ -1185,7 +1210,7 @@ function updateBotLogic(delta, time) {
     }
 }
 
-// CORREÇÃO DA SUBIDA NAS RAMPAS / 2º ANDAR
+// ANIMATE (LOOP DO JOGO)
 function animate() {
     requestAnimationFrame(animate);
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
