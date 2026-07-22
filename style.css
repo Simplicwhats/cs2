@@ -55,25 +55,46 @@ body, html {
     transform: translate(-50%, -50%);
     pointer-events: none;
     opacity: 0;
-    background: radial-gradient(circle, rgba(255,0,0,0.4) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(255,0,0,0.5) 0%, transparent 70%);
     transition: opacity 0.3s ease;
     z-index: 6;
 }
 
-/* Placar Superior */
+/* Placar Superior Dinâmico */
 #scoreboard {
     position: absolute;
     top: 15px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.6);
-    padding: 8px 20px;
-    border-radius: 6px;
-    font-size: 16px;
+    background: rgba(0, 0, 0, 0.75);
+    padding: 8px 24px;
+    border-radius: 8px;
+    font-size: 15px;
     font-weight: bold;
     letter-spacing: 1px;
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid rgba(0, 255, 136, 0.3);
     z-index: 5;
+}
+
+#score-wrapper {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+}
+
+.score-card {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
+.score-card .p-name {
+    color: #aaa;
+}
+
+.score-card .p-score {
+    color: #00ff88;
+    font-size: 18px;
 }
 
 /* HUD Painéis */
@@ -110,11 +131,11 @@ body, html {
     position: absolute;
     bottom: 90px;
     right: 20px;
-    background: rgba(0,0,0,0.5);
-    padding: 5px 10px;
+    background: rgba(0,0,0,0.6);
+    padding: 6px 12px;
     border-radius: 4px;
     font-size: 12px;
-    color: #aaa;
+    color: #00ff88;
     z-index: 5;
     display: none;
 }
@@ -125,7 +146,7 @@ body, html {
     top: 30%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 32px;
+    font-size: 30px;
     font-weight: bold;
     color: #ff3333;
     text-shadow: 0 2px 8px rgba(0,0,0,0.9);
@@ -138,11 +159,12 @@ body, html {
     position: absolute;
     top: 70px;
     right: 20px;
-    background: rgba(0,0,0,0.7);
-    padding: 6px 14px;
+    background: rgba(0,0,0,0.85);
+    padding: 8px 16px;
     border-radius: 4px;
     font-size: 14px;
     color: #00ff88;
+    border-right: 3px solid #00ff88;
     display: none;
     z-index: 5;
 }
@@ -226,9 +248,7 @@ body, html {
     border-color: #00ff88;
 }
 
-.buy-grid button:hover span {
-    color: #111;
-}
+.buy-grid button:hover span { color: #111; }
 
 #btn-close-buy {
     width: 100%;
@@ -272,17 +292,8 @@ body, html {
     letter-spacing: 2px;
 }
 
-.input-group {
-    margin-bottom: 18px;
-}
-
-.input-group label {
-    display: block;
-    margin-bottom: 6px;
-    font-size: 14px;
-    color: #aaa;
-}
-
+.input-group { margin-bottom: 18px; }
+.input-group label { display: block; margin-bottom: 6px; font-size: 14px; color: #aaa; }
 .input-group input, .input-group select {
     width: 100%;
     padding: 10px;
@@ -293,12 +304,7 @@ body, html {
     box-sizing: border-box;
 }
 
-.mode-select {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 20px;
-}
-
+.mode-select { display: flex; gap: 8px; margin-bottom: 20px; }
 .mode-btn {
     flex: 1;
     padding: 10px 5px;
@@ -307,7 +313,7 @@ body, html {
     color: #aaa;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: bold;
     text-align: center;
 }
@@ -318,16 +324,8 @@ body, html {
     border-color: #00ff88;
 }
 
-#net-link-section {
-    margin-bottom: 20px;
-}
-
-#net-status-label {
-    font-size: 12px;
-    color: #f0ad4e;
-    margin-top: 6px;
-    text-align: center;
-}
+#net-link-section { margin-bottom: 20px; }
+#net-status-label { font-size: 12px; color: #f0ad4e; margin-top: 6px; text-align: center; }
 
 .primary-btn {
     width: 100%;
@@ -342,12 +340,5 @@ body, html {
     transition: background 0.2s;
 }
 
-.primary-btn:hover {
-    background: #00cc6a;
-}
-
-.primary-btn:disabled {
-    background: #555;
-    color: #888;
-    cursor: not-allowed;
-}
+.primary-btn:hover { background: #00cc6a; }
+.primary-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
