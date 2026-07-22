@@ -616,7 +616,6 @@ function initGameEngine() {
     });
 }
 
-// TEXTURA DE PAREDE E PISO DETALHADAS
 function createWallTexture(baseColor, gridColor = "rgba(0,0,0,0.25)", pattern = 'grid') {
     const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
@@ -643,7 +642,6 @@ function createWallTexture(baseColor, gridColor = "rgba(0,0,0,0.25)", pattern = 
         }
     }
 
-    // Ruído/Sujeira nas superfícies para textura realista
     for (let i = 0; i < 1500; i++) {
         ctx.fillStyle = Math.random() > 0.5 ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)";
         ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
@@ -666,7 +664,7 @@ function buildMapGeometries() {
         fColor = 0x8c7c68; wColor = '#b8a68d'; bColor = '#4a607a'; trimColor = '#2b3a4a'; winColor = '#1f2833';
     } else if(selectedMap === 'inferno') {
         fColor = 0x474747; wColor = '#8a3c2c'; bColor = '#5e7363'; trimColor = '#3a2118'; winColor = '#24140e';
-    } else { // Nuke
+    } else { 
         fColor = 0x22272c; wColor = '#5a6978'; bColor = '#2d5573'; trimColor = '#1a2228'; winColor = '#0f171e';
     }
 
@@ -676,31 +674,23 @@ function buildMapGeometries() {
     const trimMat = new THREE.MeshStandardMaterial({ color: trimColor, roughness: 0.5 });
     const winMat = new THREE.MeshStandardMaterial({ color: winColor, metalness: 0.8, roughness: 0.2 });
 
-    // Chão Principal
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(320, 320), fMat);
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 
-    // Muros Delimitadores Perimetrais
     createBlock(0, 12, -160, 320, 24, 4, wMat); 
     createBlock(0, 12, 160, 320, 24, 4, wMat);
     createBlock(-160, 12, 0, 4, 24, 320, wMat); 
     createBlock(160, 12, 0, 4, 24, 320, wMat);
 
-    // CIDADE COMPLEXA COM DIVERSOS PRÉDIOS E VARANDAS
     const cityLayout = [
-        // Prédios dos Cantos
         {x: -65, z: 65, w: 32, d: 32, h: 22, mat: wMat, hasBalcony: true},
         {x: 65, z: 65, w: 32, d: 32, h: 22, mat: bMat, hasBalcony: true},
         {x: -65, z: -65, w: 32, d: 32, h: 22, mat: bMat, hasBalcony: true},
         {x: 65, z: -65, w: 32, d: 32, h: 22, mat: wMat, hasBalcony: true},
-        
-        // Prédios Centrais Intermediários
         {x: 0, z: 75, w: 26, d: 20, h: 18, mat: bMat, hasBalcony: true},
         {x: 0, z: -75, w: 26, d: 20, h: 18, mat: wMat, hasBalcony: true},
         {x: -75, z: 0, w: 20, d: 26, h: 18, mat: wMat, hasBalcony: false},
         {x: 75, z: 0, w: 20, d: 26, h: 18, mat: bMat, hasBalcony: false},
-        
-        // Torres Centrais de Combate com Janelas Estratégicas
         {x: -25, z: -25, w: 22, d: 22, h: 20, mat: wMat, hasBalcony: true},
         {x: 25, z: 25, w: 22, d: 22, h: 20, mat: bMat, hasBalcony: true}
     ];
@@ -709,7 +699,6 @@ function buildMapGeometries() {
         createFunctionalBuilding(b.x, b.z, b.w, b.d, b.h, b.mat, trimMat, winMat, b.hasBalcony);
     });
 
-    // PROPAGAÇÃO DE OBJETOS ESPECÍFICOS POR MAPA
     if (selectedMap === 'dust2') {
         const boxMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.8 });
         createBlock(15, 2, 15, 4, 4, 4, boxMat);
@@ -734,22 +723,18 @@ function buildMapGeometries() {
     }
 }
 
-// PRÉDIOS ESTRUTURADOS COM JANELAS, VARANDAS E RAMPAS LISAS DE ACESSO
 function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winMat, addBalcony = true) {
     const wallT = 1.2;
     const floorH = 8.0; 
 
-    // Paredes Principais (Térreo ao Topo)
-    createBlock(x, height/2, z - depth/2, width, height, wallT, mat); // Traseira
-    createBlock(x - width/2, height/2, z, wallT, height, depth, mat); // Esquerda
-    createBlock(x + width/2, height/2, z, wallT, height, depth, mat); // Direita
+    createBlock(x, height/2, z - depth/2, width, height, wallT, mat); 
+    createBlock(x - width/2, height/2, z, wallT, height, depth, mat); 
+    createBlock(x + width/2, height/2, z, wallT, height, depth, mat); 
 
-    // Parede Frontal Dividida com Janela/Abertura de Snipers no 2º Andar
     createBlock(x - width/3, floorH/2, z + depth/2, width/3, floorH, wallT, mat);
     createBlock(x + width/3, floorH/2, z + depth/2, width/3, floorH, wallT, mat);
     createBlock(x, floorH + (height - floorH) * 0.75, z + depth/2, width, (height - floorH) * 0.5, wallT, mat);
 
-    // Janelas Decorativas com Vidro Reflexivo nas Paredes Laterais
     const winGeo = new THREE.BoxGeometry(0.2, 2.5, 2.0);
     const winLeft = new THREE.Mesh(winGeo, winMat);
     winLeft.position.set(x - width/2 - 0.1, floorH + 2, z);
@@ -759,18 +744,15 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     winRight.position.set(x + width/2 + 0.1, floorH + 2, z);
     scene.add(winRight);
 
-    // Acabamento de Topo
     createBlock(x, height + 0.5, z, width + 0.5, 1.0, depth + 0.5, trimMat);
 
-    // Laje Superior do 2º Andar
-    const floorTile1 = new THREE.Mesh(new THREE.BoxGeometry(width - 6, 0.6, depth - 2), mat);
-    floorTile1.position.set(x - 2, floorH, z);
+    const floorTile1 = new THREE.Mesh(new THREE.BoxGeometry(width - 4, 0.6, depth - 2), mat);
+    floorTile1.position.set(x, floorH, z);
     floorTile1.receiveShadow = true; floorTile1.castShadow = true;
     scene.add(floorTile1);
     collidables.push(new THREE.Box3().setFromObject(floorTile1));
     wallMeshes.push(floorTile1); mapWallMeshes.push(floorTile1);
 
-    // VARANDA EXTERNA (Se habilitado)
     if (addBalcony) {
         const balcDepth = 4.5;
         const balconyFloor = new THREE.Mesh(new THREE.BoxGeometry(width * 0.6, 0.5, balcDepth), mat);
@@ -780,15 +762,14 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
         collidables.push(new THREE.Box3().setFromObject(balconyFloor));
         wallMeshes.push(balconyFloor); mapWallMeshes.push(balconyFloor);
 
-        // Mureta de Proteção da Varanda
         createBlock(x, floorH + 0.8, z + depth/2 + balcDepth, width * 0.6, 1.2, 0.4, trimMat);
         createBlock(x - (width * 0.3), floorH + 0.8, z + depth/2 + balcDepth/2, 0.4, 1.2, balcDepth, trimMat);
         createBlock(x + (width * 0.3), floorH + 0.8, z + depth/2 + balcDepth/2, 0.4, 1.2, balcDepth, trimMat);
     }
 
-    // RAMPA DE ACESSO FLUIDA E CORRIGIDA
-    const rampLength = 18; 
-    const rampWidth = 5.0;
+    // Rampa Suave e Flutuante (Sem Travar)
+    const rampLength = 20; 
+    const rampWidth = 5.5;
     const rampGeo = new THREE.BoxGeometry(rampWidth, 0.4, rampLength);
     const ramp = new THREE.Mesh(rampGeo, trimMat);
     
@@ -797,13 +778,11 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     ramp.rotation.x = angle;
     
     ramp.receiveShadow = true; ramp.castShadow = true;
-    ramp.userData.isRamp = true; // Tag especial para subida livre nas rampas
+    ramp.userData.isRamp = true;
     scene.add(ramp);
-    collidables.push(new THREE.Box3().setFromObject(ramp));
     wallMeshes.push(ramp); mapWallMeshes.push(ramp);
 }
 
-// ELEMENTOS DE CENÁRIO 
 function createTree(x, z) {
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 6), new THREE.MeshStandardMaterial({color: 0x4a2e18, roughness: 0.9}));
     trunk.position.set(x, 3, z); trunk.castShadow = true; scene.add(trunk);
@@ -1153,26 +1132,35 @@ function showKillFeed(txt) {
     setTimeout(() => feed.style.display='none', 2000);
 }
 
+// CORREÇÃO DOS BOTS: LINHA DE VISÃO REAL
 function updateBotLogic(delta, time) {
     if (gameMode !== 'bot' || isDead) return;
 
     for (let bot of bots) {
         if (!bot.mesh) continue;
-        const dist = bot.mesh.position.distanceTo(camera.position);
+        
+        const botEyes = bot.mesh.position.clone().add(new THREE.Vector3(0, 1.6, 0));
+        const playerCenter = camera.position.clone().add(new THREE.Vector3(0, -0.4, 0));
+        const dist = botEyes.distanceTo(playerCenter);
         
         let hasLOS = false;
-        const dirToPlayer = new THREE.Vector3().subVectors(camera.position, bot.mesh.position).normalize();
-        const ray = new THREE.Raycaster(new THREE.Vector3().copy(bot.mesh.position).add(new THREE.Vector3(0,1.2,0)), dirToPlayer);
-        const hits = ray.intersectObjects(mapWallMeshes);
-        if (hits.length === 0 || hits[0].distance >= dist - 1.5) hasLOS = true;
+        const dirToPlayer = new THREE.Vector3().subVectors(playerCenter, botEyes).normalize();
+        
+        // Raycast estrito de verificação de obstáculos
+        const ray = new THREE.Raycaster(botEyes, dirToPlayer);
+        const hits = ray.intersectObjects(mapWallMeshes, false);
+        
+        if (hits.length === 0 || hits[0].distance >= dist) {
+            hasLOS = true;
+        }
 
         bot.mesh.lookAt(camera.position.x, bot.mesh.position.y, camera.position.z);
 
-        if (hasLOS && dist < 45) {
+        if (hasLOS && dist < 50) {
             if (time - bot.lastShot > 850) { 
                 bot.lastShot = time; 
                 playShootSound(); 
-                if (Math.random() > 0.45) takeDamage(16, bot.mesh.position); 
+                takeDamage(16, botEyes); 
             }
             
             const strafeVetor = new THREE.Vector3().crossVectors(dirToPlayer, new THREE.Vector3(0,1,0)).normalize();
@@ -1207,6 +1195,7 @@ function updateBotLogic(delta, time) {
     }
 }
 
+// CORREÇÃO DA SUBIDA NAS RAMPAS / 2º ANDAR
 function animate() {
     requestAnimationFrame(animate);
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
@@ -1234,44 +1223,36 @@ function animate() {
         if (moveR) velocity.addScaledVector(camRight, speed * delta);
 
         const oldPos = camera.position.clone();
-        camera.position.addScaledVector(velocity, delta);
+        camera.position.x += velocity.x * delta;
+        camera.position.z += velocity.z * delta;
 
-        // DETECÇÃO E COLISÃO COM RAMPAS E ELEVAÇÕES
-        playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
-        
-        // Raycast para verificar o piso logo abaixo do jogador
-        const feetRay = new THREE.Raycaster(camera.position, new THREE.Vector3(0, -1, 0), 0, currentHeight + 1.2);
-        const feetHits = feetRay.intersectObjects(wallMeshes);
+        // RAYCAST DE PÉS PARA SUBIR EM RAMPAS E SEGUNDO ANDAR
+        const rayOrigin = camera.position.clone();
+        const feetRay = new THREE.Raycaster(rayOrigin, new THREE.Vector3(0, -1, 0), 0, currentHeight + 0.8);
+        const feetHits = feetRay.intersectObjects(mapWallMeshes);
 
         if (feetHits.length > 0) {
             let hitGroundY = feetHits[0].point.y + currentHeight;
             let diffY = hitGroundY - camera.position.y;
 
-            // Se for uma elevação suave / rampa, ajusta a altura suavemente
-            if (diffY > -0.8 && diffY < 1.4) {
+            if (diffY > -1.0 && diffY < 1.5) {
                 camera.position.y = hitGroundY;
                 velocity.y = 0;
                 canJump = true;
             }
+        } else {
+            camera.position.y += velocity.y * delta;
         }
 
+        // COLISÃO COM MURAIS E CAIXAS
+        playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
         for (let box of collidables) {
             if (playerBox.intersectsBox(box)) {
-                let boxTop = box.max.y;
-                let stepHeight = boxTop - (camera.position.y - currentHeight);
-
-                // Permite degraus suaves até 1.2 unidades de altura
-                if (stepHeight > 0 && stepHeight <= 1.2) {
-                    camera.position.y = boxTop + currentHeight;
-                    velocity.y = 0;
-                    canJump = true;
-                } else {
-                    camera.position.x = oldPos.x;
-                    camera.position.z = oldPos.z;
-                    velocity.x = 0;
-                    velocity.z = 0;
-                    break;
-                }
+                camera.position.x = oldPos.x;
+                camera.position.z = oldPos.z;
+                velocity.x = 0;
+                velocity.z = 0;
+                break;
             }
         }
 
