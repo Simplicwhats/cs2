@@ -727,19 +727,24 @@ function buildMapGeometries() {
 function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winMat, addBalcony = true) {
     const wallT = 1.2;
     const floorH = 8.0; 
+    const doorWidth = 6.0;
 
-    // Paredes laterais e traseira
+    // --- TERREO E PAREDES EXTERNAS ---
+    // Parede Traseira
     createBlock(x, height/2, z - depth/2, width, height, wallT, mat); 
+    // Parede Esquerda
     createBlock(x - width/2, height/2, z, wallT, height, depth, mat); 
+    // Parede Direita
     createBlock(x + width/2, height/2, z, wallT, height, depth, mat); 
 
-    // Frente recortada para livre passagem no portal superior
-    createBlock(x - width/3, floorH/2, z + depth/2, width/3, floorH, wallT, mat);
-    createBlock(x + width/3, floorH/2, z + depth/2, width/3, floorH, wallT, mat);
-    
-    // Viga superior bem alta para nao bater a cabeça ao entrar no 2º andar
-    createBlock(x, height - 0.5, z + depth/2, width, 1.0, wallT, mat);
+    // Parede Frontal com Porta no Térreo (Entrada da casa)
+    const sideWallW = (width - doorWidth) / 2;
+    createBlock(x - width/2 + sideWallW/2, floorH/2, z + depth/2, sideWallW, floorH, wallT, mat);
+    createBlock(x + width/2 - sideWallW/2, floorH/2, z + depth/2, sideWallW, floorH, wallT, mat);
+    // Parede Frontal do 2º Andar
+    createBlock(x, floorH + (height - floorH)/2, z + depth/2, width, height - floorH, wallT, mat);
 
+    // Janelas decorativas
     const winGeo = new THREE.BoxGeometry(0.2, 2.5, 2.0);
     const winLeft = new THREE.Mesh(winGeo, winMat);
     winLeft.position.set(x - width/2 - 0.1, floorH + 2, z);
@@ -749,16 +754,50 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     winRight.position.set(x + width/2 + 0.1, floorH + 2, z);
     scene.add(winRight);
 
+    // Moldura do Telhado
     createBlock(x, height + 0.5, z, width + 0.5, 1.0, depth + 0.5, trimMat);
 
-    // Piso do 2º Andar
-    const floorTile1 = new THREE.Mesh(new THREE.BoxGeometry(width - 2, 0.6, depth - 4), mat);
-    floorTile1.position.set(x, floorH, z - 1);
+    // --- PISO DO 2º ANDAR COM BURACO (VÃO DA ESCADA) ---
+    // Em vez de uma placa inteira, dividimos o chão em duas seções para deixar o buraco da escada no fundo/lado
+    const stairHoleDepth = 10.0;
+    const stairHoleWidth = 6.0;
+    
+    // Parte do chão que cobre a maior parte do 2º andar
+    const mainFloorDepth = depth - stairHoleDepth - 2;
+    const floorTile1 = new THREE.Mesh(new THREE.BoxGeometry(width - 2, 0.6, mainFloorDepth), mat);
+    floorTile1.position.set(x, floorH, z + (stairHoleDepth / 2) - 1);
     floorTile1.receiveShadow = true; floorTile1.castShadow = true;
     scene.add(floorTile1);
     collidables.push(new THREE.Box3().setFromObject(floorTile1));
     wallMeshes.push(floorTile1); mapWallMeshes.push(floorTile1);
 
+    // Complemento lateral do chão ao lado do buraco
+    const sideFloorWidth = (width - 2) - stairHoleWidth;
+    const floorTile2 = new THREE.Mesh(new THREE.BoxGeometry(sideFloorWidth, 0.6, stairHoleDepth), mat);
+    floorTile2.position.set(x - (stairHoleWidth / 2), floorH, z - (depth / 2) + (stairHoleDepth / 2) + 1);
+    floorTile2.receiveShadow = true; floorTile2.castShadow = true;
+    scene.add(floorTile2);
+    collidables.push(new THREE.Box3().setFromObject(floorTile2));
+    wallMeshes.push(floorTile2); mapWallMeshes.push(floorTile2);
+
+    // --- ESCADA / RAMPA INTERNA ---
+    // A rampa agora começa no térreo e sobe POR DENTRO até o buraco do 2º andar
+    const rampLength = 14; 
+    const rampWidth = 5.0;
+    const rampGeo = new THREE.BoxGeometry(rampWidth, 0.4, rampLength);
+    const ramp = new THREE.Mesh(rampGeo, trimMat);
+    
+    const angle = Math.atan2(floorH, rampLength - 2);
+    // Posicionada internamente no fundo do prédio
+    ramp.position.set(x + (width / 2) - (rampWidth / 2) - 2, (floorH / 2) - 0.2, z - (depth / 2) + (rampLength / 2) + 1.5);
+    ramp.rotation.x = -angle; // Inclinada subindo para dentro
+    
+    ramp.receiveShadow = true; ramp.castShadow = true;
+    ramp.userData.isRamp = true; 
+    scene.add(ramp);
+    wallMeshes.push(ramp); mapWallMeshes.push(ramp);
+
+    // Sacada Externa (Opcional)
     if (addBalcony) {
         const balcDepth = 4.5;
         const balconyFloor = new THREE.Mesh(new THREE.BoxGeometry(width * 0.6, 0.5, balcDepth), mat);
@@ -772,23 +811,7 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
         createBlock(x - (width * 0.3), floorH + 0.8, z + depth/2 + balcDepth/2, 0.4, 1.2, balcDepth, trimMat);
         createBlock(x + (width * 0.3), floorH + 0.8, z + depth/2 + balcDepth/2, 0.4, 1.2, balcDepth, trimMat);
     }
-
-    // Rampa Suave de Acesso (Flagged as Ramp para ignorar na caixa de colisão dura)
-    const rampLength = 22; 
-    const rampWidth = 6.0;
-    const rampGeo = new THREE.BoxGeometry(rampWidth, 0.4, rampLength);
-    const ramp = new THREE.Mesh(rampGeo, trimMat);
-    
-    const angle = Math.atan2(floorH, rampLength);
-    ramp.position.set(x, (floorH / 2) - 0.2, z + depth/2 + (rampLength / 2) - 3.5);
-    ramp.rotation.x = angle;
-    
-    ramp.receiveShadow = true; ramp.castShadow = true;
-    ramp.userData.isRamp = true; 
-    scene.add(ramp);
-    wallMeshes.push(ramp); mapWallMeshes.push(ramp);
 }
-
 function createTree(x, z) {
     const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 6), new THREE.MeshStandardMaterial({color: 0x4a2e18, roughness: 0.9}));
     trunk.position.set(x, 3, z); trunk.castShadow = true; scene.add(trunk);
