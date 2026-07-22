@@ -22,10 +22,9 @@
     <div id="damage-overlay"></div>
     <div id="damage-indicator"></div>
 
+    <!-- Placar Superior (Dinâmico para até 3 Jogadores) -->
     <div id="scoreboard" style="display: none;">
-        <span id="score-player-name"><span id="display-my-name">JOGADOR</span></span>: <span id="score-player">0</span> 
-        &nbsp;|&nbsp; 
-        <span id="score-enemy">0</span> : <span id="score-enemy-name">INIMIGOS</span>
+        <div id="score-wrapper"></div>
     </div>
 
     <!-- HUD Inferior Esquerdo (HP e Dinheiro) -->
@@ -43,7 +42,7 @@
     </div>
 
     <!-- Dica da Loja -->
-    <div id="buy-hint" style="display: none;">Pressione [B] para abrir a Loja</div>
+    <div id="buy-hint" style="display: none;">Pressione [B] para abrir a Loja | Duplo [W] para Correr</div>
 
     <!-- Mensagens de Rodada / Morte -->
     <div id="round-message"></div>
@@ -52,7 +51,7 @@
     <!-- Menu de Pausa -->
     <div id="pause-screen" style="display: none;">
         <h1>JOGO PAUSADO</h1>
-        <p>Clique na tela ou pressione o botão abaixo para voltar</p>
+        <p>Clique na tela para retornar ao combate</p>
         <button id="btn-resume">Retornar ao Jogo</button>
     </div>
 
@@ -86,17 +85,17 @@
             <div class="input-group">
                 <label>Escolha o Mapa:</label>
                 <select id="map-select">
-                    <option value="dust2">Dust II (Deserto)</option>
-                    <option value="mirage">Mirage (Cidade)</option>
-                    <option value="inferno">Inferno (Vila)</option>
-                    <option value="nuke">Nuke (Industrial)</option>
+                    <option value="dust2">Dust II (Deserto Tático)</option>
+                    <option value="mirage">Mirage (Cidade Urbana)</option>
+                    <option value="inferno">Inferno (Vilarejo Rústico)</option>
+                    <option value="nuke">Nuke (Complexo Industrial)</option>
                 </select>
             </div>
 
             <div class="mode-select">
-                <button class="mode-btn active" id="mode-bot" onclick="setGameMode('bot')">Modo Treino (5 Bots)</button>
-                <button class="mode-btn" id="mode-1v1" onclick="setGameMode('1v1')">1v1 (Online)</button>
-                <button class="mode-btn" id="mode-2v2" onclick="setGameMode('2v2')">2v2 (Online)</button>
+                <button class="mode-btn active" id="mode-bot" onclick="setGameMode('bot')">Treino (Bots)</button>
+                <button class="mode-btn" id="mode-1v1" onclick="setGameMode('1v1')">1v1 Online</button>
+                <button class="mode-btn" id="mode-2v2" onclick="setGameMode('2v2')">3 Players Online</button>
             </div>
 
             <div id="net-link-section" style="display: none;">
@@ -109,8 +108,6 @@
         </div>
     </div>
 
-    <!-- Script Principal do Jogo -->
     <script src="script.js"></script>
 </body>
 </html>
-
