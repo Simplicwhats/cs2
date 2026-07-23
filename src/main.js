@@ -4,16 +4,8 @@ import { buildMapGeometries, collidables, wallMeshes, mapWallMeshes } from './ma
 import { updateBotLogic } from './bot.js';
 
 let gameMode = 'bot';
-let maxClients = 0; 
-let peer, isHost = true;
-let hostConns = []; 
-let myConn = null;  
-let networkPlayers = {}; 
-let playerScores = {}; 
 let playerNick = "Striker", selectedMap = "dust2";
 let playerMoney = 5000;
-let activeGrenades = [];
-let lastWPressTime = 0;
 
 let inventory = {
     secondary: { key: 'deagle', ammo: 7, reserveAmmo: 35 },
@@ -23,20 +15,18 @@ let activeSlot = 'secondary';
 let hasArmor = false, hasHelmet = false, grenadesCount = 0;
 
 let lastShotTime = 0, isAiming = false, pointerLocked = false, buyMenuOpen = false, isMouseDown = false;
-let isInvulnerable = false, invulnerableTimeout = null;
-let lastKillerPos = null;
-
 let scene, camera, renderer, prevTime = performance.now();
 let moveF = false, moveB = false, moveL = false, moveR = false, canJump = true;
 let isRunning = false, isCrouching = false;
 let velocity = new THREE.Vector3(), currentHeight = 1.8;
 let hp = 100, isDead = false;
 let gunGroup, muzzleFlashMesh, muzzleLight;
+
 let bots = []; 
+let networkPlayers = {}; 
+let playerScores = {}; 
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-let recoilOffset = 0;
 let playerBox = new THREE.Box3();
-let lastSentTime = 0;
 let usedSpawns = [];
 
 const btnStart = document.getElementById('btn-start');
@@ -88,26 +78,19 @@ function updateScoreboard() {
     wrapper.innerHTML = '';
     
     if (gameMode === 'bot') {
-        const myId = isHost ? 'host' : (peer ? peer.id : 'host');
-        const myScore = playerScores[myId] || 0;
+        const myScore = playerScores['player'] || 0;
         const enemyScore = playerScores['bots'] || 0;
         wrapper.innerHTML = `<div class="score-card"><span class="p-name">${playerNick.toUpperCase()}:</span><span class="p-score">${myScore}</span></div>`;
         wrapper.innerHTML += ` &nbsp;|&nbsp; <div class="score-card"><span class="p-name">BOTS:</span><span class="p-score">${enemyScore}</span></div>`;
-    } else {
-        const myId = isHost ? 'host' : (peer ? peer.id : 'host');
-        wrapper.innerHTML += `<div class="score-card"><span class="p-name">${playerNick.toUpperCase()}:</span><span class="p-score">${playerScores[myId] || 0}</span></div>`;
-        
-        let pCount = 2;
-        for (let id in networkPlayers) {
-            wrapper.innerHTML += ` &nbsp;|&nbsp; <div class="score-card"><span class="p-name">PLAYER ${pCount++}:</span><span class="p-score">${playerScores[id] || 0}</span></div>`;
-        }
     }
 }
 
 function createNetworkPlayer(id, nick) {
-    if (networkPlayers[id]) return;
-    const group = new THREE.Group();
+    if (networkPlayers[id]) {
+        scene.remove(networkPlayers[id]);
+    }
     
+    const group = new THREE.Group();
     const matUniform = new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.6 });
     const matVest = new THREE.MeshStandardMaterial({ color: 0x1a252f, roughness: 0.4 });
     const matSkin = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.7 });
@@ -149,14 +132,17 @@ function createNetworkPlayer(id, nick) {
     scene.add(group);
     wallMeshes.push(hitboxBody);
     networkPlayers[id] = group;
-    if (!playerScores[id]) playerScores[id] = 0;
 }
 
 function spawnBots(count = 5) {
+    bots.forEach(b => {
+        if (b.mesh) scene.remove(b.mesh);
+    });
     bots = [];
+
     for (let i = 0; i < count; i++) {
         const botId = 'bot_' + i;
-        createNetworkPlayer(botId, "Bot " + i);
+        createNetworkPlayer(botId, "Bot " + (i + 1));
         let bMesh = networkPlayers[botId];
         
         let bSpawn = getSafeSpawn(camera ? camera.position : null);
@@ -263,9 +249,66 @@ function initGameEngine() {
     container.appendChild(renderer.domElement);
 
     setupEvents();
+    setupBuyMenuEvents();
+}
+
+function setupBuyMenuEvents() {
+    const weapons = ['deagle', 'p90', 'ak47', 'm4a4', 'awp'];
+    weapons.forEach(wKey => {
+        const btn = document.getElementById(`buy-${wKey}`);
+        if (btn) btn.onclick = () => buyWeapon(wKey);
+    });
+
+    const buyArmorBtn = document.getElementById('buy-armor');
+    if (buyArmorBtn) buyArmorBtn.onclick = () => buyGear('armor');
+
+    const buyHelmetBtn = document.getElementById('buy-helmet');
+    if (buyHelmetBtn) buyHelmetBtn.onclick = () => buyGear('helmet');
+
+    const buyGrenadeBtn = document.getElementById('buy-grenade');
+    if (buyGrenadeBtn) buyGrenadeBtn.onclick = () => buyGear('grenade');
+}
+
+function buyWeapon(key) {
+    const item = itemsConfig[key];
+    if (!item) return;
+    if (playerMoney >= item.price) {
+        playerMoney -= item.price;
+        inventory[item.slot] = { key: key, ammo: item.maxAmmo, reserveAmmo: item.totalAmmo };
+        activeSlot = item.slot;
+        build3DWeapon();
+        updateHUD();
+        document.getElementById('buy-money-display').innerText = `$${playerMoney}`;
+        showKillFeed(`Adquirido: ${item.name}`);
+    } else {
+        showKillFeed("Saldo insuficiente!");
+    }
+}
+
+function buyGear(type) {
+    const item = itemsConfig[type];
+    if (!item) return;
+    if (playerMoney >= item.price) {
+        if (type === 'armor' && !hasArmor) {
+            hasArmor = true; playerMoney -= item.price;
+        } else if (type === 'helmet' && !hasHelmet) {
+            hasHelmet = true; playerMoney -= item.price;
+        } else if (type === 'grenade' && grenadesCount < 1) {
+            grenadesCount++; playerMoney -= item.price;
+        }
+        updateHUD();
+        document.getElementById('buy-money-display').innerText = `$${playerMoney}`;
+    }
 }
 
 function setupEvents() {
+    window.addEventListener('resize', () => {
+        if (!camera || !renderer) return;
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
     document.addEventListener('mousemove', (e) => {
         if (!pointerLocked || isDead || buyMenuOpen) return;
         const sens = isAiming ? 0.0006 : 0.0015;
@@ -278,13 +321,11 @@ function setupEvents() {
     document.addEventListener('keydown', (e) => {
         if (isDead) return;
         if (e.code === 'KeyB') toggleBuyMenu(!buyMenuOpen);
-        if (e.code === 'KeyG') throwGrenade();
         if (!pointerLocked || buyMenuOpen) return;
 
         if (e.code === 'KeyW' && !moveF) {
             const now = performance.now();
-            if (now - lastWPressTime < 280) isRunning = true;
-            lastWPressTime = now;
+            if (now - lastShotTime < 280) isRunning = true;
             moveF = true;
         }
 
@@ -340,20 +381,16 @@ function shoot() {
     setTimeout(() => { muzzleFlashMesh.material.opacity = 0; muzzleLight.intensity = 0; }, 40);
 
     const ray = new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2(0,0), camera);
-    let endPoint = ray.ray.at(100, new THREE.Vector3());
     const hits = ray.intersectObjects(wallMeshes, true);
 
     if (hits.length > 0) {
         const hit = hits[0];
-        endPoint.copy(hit.point);
-        
         if (gameMode === 'bot') {
             for (let bot of bots) {
                 if (hit.object.parent === bot.mesh || hit.object === bot.mesh) {
                     bot.hp -= cfg.damage;
                     if (bot.hp <= 0) {
-                        const myId = isHost ? 'host' : (peer ? peer.id : 'host');
-                        playerScores[myId] = (playerScores[myId] || 0) + 1;
+                        playerScores['player'] = (playerScores['player'] || 0) + 1;
                         hp = Math.min(100, hp + 30);
                         playerMoney += 300; 
                         updateHUD(); 
@@ -372,8 +409,8 @@ function shoot() {
     }
 }
 
-function takeDamage(dmg, sourcePos) {
-    if (isDead || isInvulnerable) return;
+function takeDamage(dmg) {
+    if (isDead) return;
 
     let finalDmg = dmg;
     if (hasHelmet) finalDmg *= 0.5;
@@ -391,7 +428,7 @@ function takeDamage(dmg, sourcePos) {
         document.getElementById('round-message').innerText = "VOCÊ FOI ELIMINADO";
         document.getElementById('round-message').style.display = 'block';
         document.exitPointerLock();
-        setTimeout(restartRound, 3000);
+        setTimeout(restartRound, 2500);
     }
 }
 
@@ -399,7 +436,6 @@ function restartRound() {
     hp = 100; isDead = false;
     playerMoney = 5000; 
     
-    // CORREÇÃO: Mantém o formato correto de Objeto do Inventory
     inventory = {
         secondary: { key: 'deagle', ammo: 7, reserveAmmo: 35 },
         primary: null
@@ -411,13 +447,12 @@ function restartRound() {
     updateHUD();
     build3DWeapon();
     
-    camera.position.copy(getSafeSpawn(null)); 
-    
-    if (gameMode === 'bot') {
-        spawnBots(5);
-    }
-    
-    document.body.requestPointerLock();
+    if (camera) camera.position.copy(getSafeSpawn(null)); 
+    if (gameMode === 'bot') spawnBots(5);
+
+    pauseScreen.style.display = 'flex';
+    pauseScreen.querySelector('h1').innerText = "RODADA REINICIADA";
+    pauseScreen.querySelector('p').innerText = "Clique na tela para entrar em combate";
 }
 
 function reload() {
@@ -435,6 +470,11 @@ function reload() {
 function setAim(active) {
     if(isDead || buyMenuOpen) return;
     isAiming = active;
+    const cfg = itemsConfig[getCurrentWeaponKey()];
+    if (cfg && cfg.zoomFov) {
+        camera.fov = active ? cfg.zoomFov : 80;
+        camera.updateProjectionMatrix();
+    }
 }
 
 function toggleBuyMenu(show) {
@@ -454,8 +494,6 @@ function showKillFeed(txt) {
     feed.innerText = txt; feed.style.display = 'block';
     setTimeout(() => feed.style.display='none', 2000);
 }
-
-function throwGrenade() {}
 
 function animate() {
     requestAnimationFrame(animate);
@@ -514,6 +552,21 @@ function animate() {
     prevTime = time;
     if (renderer && scene && camera) renderer.render(scene, camera);
 }
+
+// Inicialização do Lobby
+document.querySelectorAll('.mode-btn').forEach(btn => {
+    btn.onclick = () => {
+        document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (btn.id === 'mode-bot') {
+            gameMode = 'bot';
+            document.getElementById('net-link-section').style.display = 'none';
+        } else {
+            gameMode = 'online';
+            document.getElementById('net-link-section').style.display = 'block';
+        }
+    };
+});
 
 btnStart.addEventListener('click', () => {
     playerNick = document.getElementById('player-nick').value || "Striker";
