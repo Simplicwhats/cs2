@@ -477,14 +477,14 @@ function initGameEngine() {
     const startSpawn = getSafeSpawn(null);
     camera.position.copy(startSpawn); 
 
-    const ambientLight = new THREE.AmbientLight(0xddeeff, 0.55); 
+    const ambientLight = new THREE.AmbientLight(0xddeeff, 0.65); 
     scene.add(ambientLight);
     
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x333344, 0.65); 
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444455, 0.7); 
     hemiLight.position.set(0, 100, 0); 
     scene.add(hemiLight);
     
-    const dirLight = new THREE.DirectionalLight(0xfffaed, 1.1);
+    const dirLight = new THREE.DirectionalLight(0xfffaed, 1.2);
     dirLight.position.set(100, 180, 80); 
     dirLight.castShadow = true;
     dirLight.shadow.mapSize.width = 4096;
@@ -517,6 +517,7 @@ function initGameEngine() {
             
             let bSpawn = getSafeSpawn(camera.position);
             bMesh.position.set(bSpawn.x, 0, bSpawn.z);
+            bMesh.rotation.y = Math.random() * Math.PI * 2; // Rotação Inicial Aleatória
             
             bots.push({
                 id: botId,
@@ -585,7 +586,7 @@ function initGameEngine() {
                 activeSlot = 'secondary'; build3DWeapon(); setAim(false); updateHUD();
                 break;
             case 'ControlLeft': isCrouching = true; currentHeight = 1.0; break;
-            case 'Space': if(canJump) { velocity.y = 8.5; canJump = false; } break;
+            case 'Space': if(canJump) { velocity.y = 10.5; canJump = false; } break; // Aumentado Pulo de 8.5 para 10.5
             case 'KeyR': reload(); break;
         }
     });
@@ -616,22 +617,31 @@ function initGameEngine() {
     });
 }
 
-function createWallTexture(baseColor, gridColor = "rgba(0,0,0,0.25)", pattern = 'grid') {
+// MELHORIA NAS TEXTURAS
+function createWallTexture(baseColor, gridColor = "rgba(0,0,0,0.4)", pattern = 'grid') {
     const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 512;
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = baseColor; ctx.fillRect(0, 0, 512, 512);
-    
-    ctx.strokeStyle = gridColor; 
-    ctx.lineWidth = 3;
 
+    // Gerador de Ruído (Noise) para dar textura áspera ao invés de cor lisa
+    for (let i = 0; i < 6000; i++) {
+        ctx.fillStyle = Math.random() > 0.5 ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)";
+        ctx.fillRect(Math.random() * 512, Math.random() * 512, 3, 3);
+    }
+
+    ctx.lineWidth = 4;
     if (pattern === 'grid') {
+        ctx.strokeStyle = gridColor;
         for(let i = 0; i <= 512; i += 64) {
             ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(512, i); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 512); ctx.stroke();
         }
     } else if (pattern === 'brick') {
         const bh = 32, bw = 64;
+        ctx.strokeStyle = gridColor;
         let row = 0;
+        
+        // Desenha as linhas dos tijolos
         for (let y = 0; y < 512; y += bh) {
             ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke();
             let offset = (row % 2) * (bw / 2);
@@ -640,16 +650,18 @@ function createWallTexture(baseColor, gridColor = "rgba(0,0,0,0.25)", pattern = 
             }
             row++;
         }
+        
+        // Efeito 3D Fake (Highlights nos tijolos)
+        ctx.strokeStyle = "rgba(255,255,255,0.15)";
+        ctx.lineWidth = 2;
+        for (let y = 0; y < 512; y += bh) {
+            ctx.beginPath(); ctx.moveTo(0, y+3); ctx.lineTo(512, y+3); ctx.stroke();
+        }
     }
 
-    for (let i = 0; i < 1500; i++) {
-        ctx.fillStyle = Math.random() > 0.5 ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.04)";
-        ctx.fillRect(Math.random() * 512, Math.random() * 512, 2, 2);
-    }
-    
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping; 
-    tex.repeat.set(2, 2);
+    tex.repeat.set(3, 3);
     return tex;
 }
 
@@ -668,10 +680,9 @@ function buildMapGeometries() {
         fColor = 0x22272c; wColor = '#5a6978'; bColor = '#2d5573'; trimColor = '#1a2228'; winColor = '#0f171e';
     }
 
-    const hexFloor = '#' + fColor.toString(16).padStart(6, '0');
-   const fMat = new THREE.MeshStandardMaterial({ map: createWallTexture('#' + fColor.toString(16), "rgba(0,0,0,0.15)", 'grid'), roughness: 0.8 });
-    const wMat = new THREE.MeshStandardMaterial({ map: createWallTexture(wColor, "rgba(0,0,0,0.2)", 'brick'), roughness: 0.7 });
-    const bMat = new THREE.MeshStandardMaterial({ map: createWallTexture(bColor, "rgba(0,0,0,0.25)", 'grid'), roughness: 0.7 });
+    const fMat = new THREE.MeshStandardMaterial({ map: createWallTexture('#' + fColor.toString(16), "rgba(0,0,0,0.15)", 'grid'), roughness: 0.8 });
+    const wMat = new THREE.MeshStandardMaterial({ map: createWallTexture(wColor, "rgba(0,0,0,0.3)", 'brick'), roughness: 0.7 });
+    const bMat = new THREE.MeshStandardMaterial({ map: createWallTexture(bColor, "rgba(0,0,0,0.35)", 'grid'), roughness: 0.7 });
     const trimMat = new THREE.MeshStandardMaterial({ color: trimColor, roughness: 0.5 });
     const winMat = new THREE.MeshStandardMaterial({ color: winColor, metalness: 0.8, roughness: 0.2 });
 
@@ -729,28 +740,22 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     const floorH = 8.0; 
     const doorWidth = 6.0;
 
-    // --- PAREDES EXTERNAS (TÉRREO) ---
-    createBlock(x, height/2, z - depth/2, width, height, wallT, mat); // Traseira
-    createBlock(x - width/2, height/2, z, wallT, height, depth, mat); // Esquerda
-    createBlock(x + width/2, height/2, z, wallT, height, depth, mat); // Direita
+    createBlock(x, height/2, z - depth/2, width, height, wallT, mat); 
+    createBlock(x - width/2, height/2, z, wallT, height, depth, mat); 
+    createBlock(x + width/2, height/2, z, wallT, height, depth, mat); 
 
-    // Frente com Porta no Térreo
     const sideWallW = (width - doorWidth) / 2;
     createBlock(x - width/2 + sideWallW/2, floorH/2, z + depth/2, sideWallW, floorH, wallT, mat);
     createBlock(x + width/2 - sideWallW/2, floorH/2, z + depth/2, sideWallW, floorH, wallT, mat);
 
-    // --- PAREDE FRONTAL DO 2º ANDAR (COM PASSAGEM PARA A SACADA) ---
     if (addBalcony) {
-        // Se tem sacada, deixa um vão livre de 6 unidades no meio para você passar
         const upperWallH = height - floorH;
         createBlock(x - width/2 + sideWallW/2, floorH + upperWallH/2, z + depth/2, sideWallW, upperWallH, wallT, mat);
         createBlock(x + width/2 - sideWallW/2, floorH + upperWallH/2, z + depth/2, sideWallW, upperWallH, wallT, mat);
     } else {
-        // Se não tem sacada, fecha a parede normalmente
         createBlock(x, floorH + (height - floorH)/2, z + depth/2, width, height - floorH, wallT, mat);
     }
 
-    // Janelas decorativas
     const winGeo = new THREE.BoxGeometry(0.2, 2.5, 2.0);
     const winLeft = new THREE.Mesh(winGeo, winMat);
     winLeft.position.set(x - width/2 - 0.1, floorH + 2, z);
@@ -760,22 +765,21 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     winRight.position.set(x + width/2 + 0.1, floorH + 2, z);
     scene.add(winRight);
 
-    // Moldura do Telhado
     createBlock(x, height + 0.5, z, width + 0.5, 1.0, depth + 0.5, trimMat);
 
-    // --- PISO DO 2º ANDAR COM VÃO DA ESCADA ---
     const stairHoleDepth = 18.0; 
     const stairHoleWidth = 8.0; 
 
-    const mainFloorDepth = depth - stairHoleDepth - 2;
-    const floorTile1 = new THREE.Mesh(new THREE.BoxGeometry(width - 2, 0.6, mainFloorDepth), mat);
+    // OBTURANDO VÃOS INTERNOS AUMENTANDO A LARGURA DO BLOCO PISO
+    const mainFloorDepth = depth - stairHoleDepth - 1; 
+    const floorTile1 = new THREE.Mesh(new THREE.BoxGeometry(width + 0.5, 0.6, mainFloorDepth), mat); 
     floorTile1.position.set(x, floorH, z + (stairHoleDepth / 2));
     floorTile1.receiveShadow = true; floorTile1.castShadow = true;
     scene.add(floorTile1);
     collidables.push(new THREE.Box3().setFromObject(floorTile1));
     wallMeshes.push(floorTile1); mapWallMeshes.push(floorTile1);
 
-    const sideFloorWidth = (width - 2) - stairHoleWidth;
+    const sideFloorWidth = (width + 0.5) - stairHoleWidth; 
     if (sideFloorWidth > 0) {
         const floorTile2 = new THREE.Mesh(new THREE.BoxGeometry(sideFloorWidth, 0.6, stairHoleDepth), mat);
         floorTile2.position.set(x - (stairHoleWidth / 2), floorH, z - (depth / 2) + (stairHoleDepth / 2) + 1);
@@ -785,14 +789,15 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
         wallMeshes.push(floorTile2); mapWallMeshes.push(floorTile2);
     }
 
-    // --- ESCADA INTERNA ---
-    const rampLength = 16; 
+    // OBTURANDO VÃO DA RAMPA
+    const rampLength = 19; // Aumentado
     const rampWidth = 6.0;
     const rampGeo = new THREE.BoxGeometry(rampWidth, 0.4, rampLength);
     const ramp = new THREE.Mesh(rampGeo, trimMat);
     
-    const angle = Math.atan2(floorH, rampLength - 3);
-    ramp.position.set(x + (width / 2) - (rampWidth / 2) - 2, (floorH / 2) - 0.2, z - (depth / 2) + (rampLength / 2) + 2);
+    const angle = Math.atan2(floorH, rampLength - 1.5); // Refazendo ajuste angular
+    // Ajustado levemente para dentro e subindo a ponta para encostar
+    ramp.position.set(x + (width / 2) - (rampWidth / 2) - 1.8, (floorH / 2) - 0.1, z - (depth / 2) + (rampLength / 2) + 1.2);
     ramp.rotation.x = -angle;
     
     ramp.receiveShadow = true; ramp.castShadow = true;
@@ -800,18 +805,17 @@ function createFunctionalBuilding(x, z, width, depth, height, mat, trimMat, winM
     scene.add(ramp);
     wallMeshes.push(ramp); mapWallMeshes.push(ramp);
 
-    // --- SACADA EXTERNA ACESSÍVEL ---
+    // OBTURANDO VÃO DA VARANDA
     if (addBalcony) {
         const balcDepth = 4.5;
-        // Piso da sacada
-        const balconyFloor = new THREE.Mesh(new THREE.BoxGeometry(width * 0.6, 0.5, balcDepth), mat);
-        balconyFloor.position.set(x, floorH, z + depth/2 + balcDepth/2);
+        // Piso mais largo pra grudar na parede principal
+        const balconyFloor = new THREE.Mesh(new THREE.BoxGeometry(width * 0.6, 0.5, balcDepth + 1.2), mat);
+        balconyFloor.position.set(x, floorH, z + depth/2 + balcDepth/2 - 0.6); // Puxado para dentro
         balconyFloor.receiveShadow = true; balconyFloor.castShadow = true;
         scene.add(balconyFloor);
         collidables.push(new THREE.Box3().setFromObject(balconyFloor));
         wallMeshes.push(balconyFloor); mapWallMeshes.push(balconyFloor);
 
-        // Guarda-corpos da sacada (frente e laterais para proteção)
         createBlock(x, floorH + 0.8, z + depth/2 + balcDepth, width * 0.6, 1.2, 0.4, trimMat);
         createBlock(x - (width * 0.3), floorH + 0.8, z + depth/2 + balcDepth/2, 0.4, 1.2, balcDepth, trimMat);
         createBlock(x + (width * 0.3), floorH + 0.8, z + depth/2 + balcDepth/2, 0.4, 1.2, balcDepth, trimMat);
@@ -1170,7 +1174,7 @@ function showKillFeed(txt) {
     setTimeout(() => feed.style.display='none', 2000);
 }
 
-// CORREÇÃO CRÍTICA DO BOT: LINHA DE VISÃO VERDADEIRA (RECURSIVA)
+// CORREÇÃO DA IA DOS BOTS (MOVIMENTAÇÃO E ROTAÇÃO)
 function updateBotLogic(delta, time) {
     if (gameMode !== 'bot' || isDead) return;
 
@@ -1181,60 +1185,48 @@ function updateBotLogic(delta, time) {
 
         const botEyes = bot.mesh.position.clone().add(new THREE.Vector3(0, 1.6, 0));
         
-        // Testamos 3 pontos do jogador: Cabeça, Tronco e Pés
         const targetPoints = [
-            camera.position.clone(), // Cabeça
-            camera.position.clone().add(new THREE.Vector3(0, -0.9, 0)), // Tronco
-            camera.position.clone().add(new THREE.Vector3(0, -1.6, 0))  // Pés
+            camera.position.clone(), 
+            camera.position.clone().add(new THREE.Vector3(0, -0.9, 0)), 
+            camera.position.clone().add(new THREE.Vector3(0, -1.6, 0))  
         ];
 
         let hasLOS = false;
         const distToPlayer = botEyes.distanceTo(camera.position);
 
-        // Se o jogador estiver muito longe (mais de 65m), o bot nem tenta olhar
         if (distToPlayer < 65) {
             for (let targetPoint of targetPoints) {
                 const dirToTarget = new THREE.Vector3().subVectors(targetPoint, botEyes);
                 const distToTarget = dirToTarget.length();
                 dirToTarget.normalize();
 
-                // Raycast mirando na direção do ponto do jogador
                 const ray = new THREE.Raycaster(botEyes, dirToTarget, 0, distToTarget);
-                
-                // Forçamos a atualização da matriz do mapa para precisão milimétrica
                 const hits = ray.intersectObjects(wallMeshes, false);
 
-                // Se NÃO houver parede entre os olhos do bot e o ponto do jogador, ele te viu!
                 if (hits.length === 0) {
                     hasLOS = true;
-                    break; // Já confirmou visão
+                    break;
                 }
             }
         }
 
-        bot.mesh.lookAt(camera.position.x, bot.mesh.position.y, camera.position.z);
-
-        // Se tem Linha de Visão Limpa
         if (hasLOS) {
-            // Cadência de tiro baseada na distância
+            bot.mesh.lookAt(camera.position.x, bot.mesh.position.y, camera.position.z);
             if (time - bot.lastShot > 800) { 
                 bot.lastShot = time; 
                 playShootSound(); 
                 
-                // Quanto mais longe você estiver, menor a chance do bot te acertar
                 const hitChance = Math.max(0.15, 0.80 - (distToPlayer / 70));
                 if (Math.random() < hitChance) {
                     takeDamage(12, botEyes); 
                 }
             }
             
-            // Movimento lateral (Strafe) enquanto atira em você
             const dirToPlayer = new THREE.Vector3().subVectors(camera.position, botEyes).normalize();
             const strafeVetor = new THREE.Vector3().crossVectors(dirToPlayer, new THREE.Vector3(0,1,0)).normalize();
             const oldPos = bot.mesh.position.clone();
             bot.mesh.position.addScaledVector(strafeVetor, 3.5 * bot.strafeDir * delta);
             
-            // Colisão do bot com paredes ao andar de lado
             botBox.setFromCenterAndSize(bot.mesh.position, new THREE.Vector3(1.2, 1.8, 1.2));
             for (let box of collidables) {
                 if (botBox.intersectsBox(box)) { 
@@ -1245,14 +1237,10 @@ function updateBotLogic(delta, time) {
             }
             if (Math.random() < 0.01) bot.strafeDir *= -1;
         } 
-        // Se NÃO tem Linha de Visão (Você está atrás da parede/prédio)
         else {
-            // Bot apenas anda para frente explorando o mapa
+            // FIX: Bot agora anda na direção que está olhando!
             const oldPos = bot.mesh.position.clone();
-            const moveVetor = new THREE.Vector3();
-            bot.mesh.getWorldDirection(moveVetor); moveVetor.y = 0; moveVetor.normalize();
-
-            bot.mesh.position.addScaledVector(moveVetor, 4.5 * delta); 
+            bot.mesh.translateZ(4.5 * delta);
             
             botBox.setFromCenterAndSize(bot.mesh.position, new THREE.Vector3(1.2, 1.8, 1.2));
             let collides = false;
@@ -1263,18 +1251,19 @@ function updateBotLogic(delta, time) {
                 }
             }
             
-            // Se o bot bater numa parede enquanto anda, ele gira
+            // Se ele bater numa parede, ele roda a câmera ativamente para procurar saída
             if (collides) {
                 bot.mesh.position.copy(oldPos);
-                bot.mesh.rotation.y += Math.PI * 0.5 * (bot.strafeDir || 1); 
-                bot.strafeDir *= -1;
+                bot.mesh.rotation.y += Math.PI / 2 + (Math.random() * Math.PI); 
+            } else if (Math.random() < 0.02) {
+                // Eventualmente roda um pouco para escanear a área
+                bot.mesh.rotation.y += (Math.random() - 0.5) * Math.PI / 2;
             }
         }
         bot.pos.copy(bot.mesh.position);
     }
 }
 
-// ANIMATE (LOOP DO JOGO)
 function animate() {
     requestAnimationFrame(animate);
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
@@ -1305,7 +1294,6 @@ function animate() {
         camera.position.x += velocity.x * delta;
         camera.position.z += velocity.z * delta;
 
-        // RAYCAST PARA SUBIR RAMPAS E SUBIR AO SEGUNDO ANDAR
         const rayOrigin = camera.position.clone();
         const feetRay = new THREE.Raycaster(rayOrigin, new THREE.Vector3(0, -1, 0), 0, currentHeight + 1.2);
         const feetHits = feetRay.intersectObjects(mapWallMeshes, true);
@@ -1323,11 +1311,10 @@ function animate() {
             camera.position.y += velocity.y * delta;
         }
 
-        // COLISÃO DO JOGADOR COM PAREDES (IGNORA A RAMPA)
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
         for (let box of collidables) {
             if (box.userData && box.userData.mesh && box.userData.mesh.userData && box.userData.mesh.userData.isRamp) {
-                continue; // Permite caminhar pela rampa sem travar
+                continue; 
             }
             if (playerBox.intersectsBox(box)) {
                 camera.position.x = oldPos.x;
