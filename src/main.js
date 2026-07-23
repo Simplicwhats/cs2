@@ -1,21 +1,18 @@
-import { itemsConfig, safeSpawns } from './config.js';
+import { itemsConfig } from './config.js';
 import { playShootSound, playExplosionSound, playReloadSound } from './audio.js';
 import { buildMapGeometries, collidables, wallMeshes, mapWallMeshes } from './map.js';
 import { updateBotLogic } from './bot.js';
 
 let gameMode = 'bot';
-let playerNick = "Striker", selectedMap = "dust2";
 let playerMoney = 5000;
 let hp = 100, isDead = false;
 
 let scene, camera, renderer, prevTime = performance.now();
 let moveF = false, moveB = false, moveL = false, moveR = false, canJump = true;
-let isRunning = false, isCrouching = false;
 let velocity = new THREE.Vector3(), currentHeight = 1.8;
-let gunGroup, muzzleFlashMesh, muzzleLight;
+let gunGroup;
 let bots = [];
-let networkPlayers = {};
-let playerScores = {};
+let lastShotTime = 0;
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 let inventory = {
@@ -23,8 +20,7 @@ let inventory = {
     primary: null
 };
 let activeSlot = 'secondary';
-let isAiming = false, pointerLocked = false, buyMenuOpen = false, isMouseDown = false;
-let playerBox = new THREE.Box3();
+let pointerLocked = false, buyMenuOpen = false;
 
 const btnStart = document.getElementById('btn-start');
 const container = document.getElementById('canvas-container');
@@ -36,6 +32,7 @@ function getCurrentWeaponKey() {
 function updateHUD() {
     const curKey = getCurrentWeaponKey();
     const curWeaponData = itemsConfig[curKey];
+    
     const hpEl = document.getElementById('hp');
     const moneyEl = document.getElementById('money-display');
     const ammoEl = document.getElementById('ammo');
@@ -55,7 +52,6 @@ function build3DWeapon() {
 
     const mDark = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, metalness: 0.7, roughness: 0.4 });
     const mWood = new THREE.MeshStandardMaterial({ color: 0x5c3317, roughness: 0.8 });
-    let barrelOffsetZ = -0.45;
     const curKey = getCurrentWeaponKey();
 
     if (curKey === 'ak47') {
@@ -66,7 +62,6 @@ function build3DWeapon() {
     } else {
         const body = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.07, 0.35), mDark);
         const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.2), mDark); barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0, -0.27);
-        barrelOffsetZ = -0.37;
         gunGroup.add(body, barrel);
     }
 
@@ -81,6 +76,71 @@ function build3DWeapon() {
     gunGroup.position.set(0.18, -0.22, -0.3);
 }
 
+function spawnBots() {
+    bots = [];
+    for (let i = 0; i < 3; i++) {
+        const botGroup = new THREE.Group();
+        
+        const matBody = new THREE.MeshStandardMaterial({ color: 0xcc3333, roughness: 0.5 });
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.9, 0.4), matBody); torso.position.y = 0.9;
+        const head = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.35), matBody); head.position.y = 1.6;
+        
+        botGroup.add(torso, head);
+        
+        // Posições variadas para os bots
+        botGroup.position.set((i - 1) * 20, 0, -25 - (i * 10));
+        scene.add(botGroup);
+
+        bots.push({
+            mesh: botGroup,
+            hp: 100,
+            pos: botGroup.position,
+            lastShot: 0,
+            strafeDir: i % 2 === 0 ? 1 : -1
+        });
+    }
+}
+
+function shoot() {
+    const now = performance.now();
+    const curKey = getCurrentWeaponKey();
+    const cfg = itemsConfig[curKey];
+    if (now - lastShotTime < cfg.fireRate) return;
+    if (inventory[activeSlot].ammo <= 0) return;
+
+    lastShotTime = now;
+    inventory[activeSlot].ammo--;
+    updateHUD();
+    playShootSound();
+
+    // Efeito de Recuo do Braço/Arma
+    if (gunGroup) {
+        gunGroup.position.z += 0.04;
+        setTimeout(() => gunGroup.position.z -= 0.04, 40);
+    }
+
+    // Raio do Tiro (Raycaster)
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(0, 0), camera);
+
+    const botMeshes = bots.map(b => b.mesh);
+    const hits = ray.intersectObjects([...wallMeshes, ...botMeshes], true);
+
+    if (hits.length > 0) {
+        const hit = hits[0];
+        for (let bot of bots) {
+            if (hit.object.parent === bot.mesh || hit.object === bot.mesh) {
+                bot.hp -= cfg.damage;
+                if (bot.hp <= 0) {
+                    bot.hp = 100;
+                    bot.mesh.position.set((Math.random() - 0.5) * 60, 0, (Math.random() - 0.5) * 60);
+                }
+                break;
+            }
+        }
+    }
+}
+
 function initGameEngine() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
@@ -89,7 +149,7 @@ function initGameEngine() {
     camera = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1.8, 0);
 
-    const ambientLight = new THREE.AmbientLight(0xddeeff, 0.65);
+    const ambientLight = new THREE.AmbientLight(0xddeeff, 0.7);
     scene.add(ambientLight);
     
     const dirLight = new THREE.DirectionalLight(0xfffaed, 1.2);
@@ -97,13 +157,14 @@ function initGameEngine() {
     dirLight.castShadow = true;
     scene.add(dirLight);
 
-    buildMapGeometries(scene, selectedMap);
+    buildMapGeometries(scene, 'dust2');
 
-    // Cria e adiciona a arma na câmera do jogador
     gunGroup = new THREE.Group();
     camera.add(gunGroup); 
     scene.add(camera);
     build3DWeapon();
+
+    spawnBots();
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -118,11 +179,16 @@ function setupEvents() {
         pointerLocked = !!document.pointerLockElement;
     });
 
+    document.addEventListener('mousedown', (e) => {
+        if (pointerLocked && e.button === 0 && !isDead) {
+            shoot();
+        }
+    });
+
     document.addEventListener('mousemove', (e) => {
         if (!pointerLocked || isDead || buyMenuOpen) return;
-        const sens = isAiming ? 0.0006 : 0.0015;
-        cameraEuler.y -= e.movementX * sens;
-        cameraEuler.x -= e.movementY * sens;
+        cameraEuler.y -= e.movementX * 0.0015;
+        cameraEuler.x -= e.movementY * 0.0015;
         cameraEuler.x = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, cameraEuler.x));
         camera.quaternion.setFromEuler(cameraEuler);
     });
@@ -135,6 +201,11 @@ function setupEvents() {
             case 'KeyA': moveL = true; break;
             case 'KeyD': moveR = true; break;
             case 'Space': if(canJump) { velocity.y = 10.5; canJump = false; } break;
+            case 'KeyR': 
+                inventory[activeSlot].ammo = itemsConfig[getCurrentWeaponKey()].maxAmmo; 
+                playReloadSound();
+                updateHUD(); 
+                break;
         }
     });
 
@@ -193,12 +264,10 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-// Quando clica no botão "INICIAR PARTIDA"
 btnStart.addEventListener('click', () => {
     document.getElementById('lobby-container').style.display = 'none';
     container.style.display = 'block';
-    
-    // Força a exibição de todos os elementos da interface (HUD)
+
     document.getElementById('hud-bottom-left').style.display = 'flex';
     document.getElementById('hud-bottom-right').style.display = 'flex';
     document.getElementById('scoreboard').style.display = 'flex';
