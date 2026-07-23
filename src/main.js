@@ -15,6 +15,7 @@ let velocity = new THREE.Vector3(), currentHeight = 1.8;
 let gunGroup, muzzleFlashMesh, muzzleLight;
 let bots = [];
 let networkPlayers = {};
+let playerScores = {};
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 let inventory = {
@@ -33,12 +34,51 @@ function getCurrentWeaponKey() {
 }
 
 function updateHUD() {
-    const curWeaponData = itemsConfig[getCurrentWeaponKey()];
-    document.getElementById('hp').innerText = Math.max(0, Math.round(hp));
-    document.getElementById('money-display').innerText = `$${playerMoney}`;
-    document.getElementById('ammo').innerText = curWeaponData.maxAmmo ? inventory[activeSlot].ammo : '-';
-    document.getElementById('reserve-ammo').innerText = curWeaponData.maxAmmo ? `/ ${inventory[activeSlot].reserveAmmo}` : '';
-    document.getElementById('weapon-display').innerText = curWeaponData.name;
+    const curKey = getCurrentWeaponKey();
+    const curWeaponData = itemsConfig[curKey];
+    const hpEl = document.getElementById('hp');
+    const moneyEl = document.getElementById('money-display');
+    const ammoEl = document.getElementById('ammo');
+    const reserveEl = document.getElementById('reserve-ammo');
+    const weaponEl = document.getElementById('weapon-display');
+
+    if (hpEl) hpEl.innerText = Math.max(0, Math.round(hp));
+    if (moneyEl) moneyEl.innerText = `$${playerMoney}`;
+    if (ammoEl) ammoEl.innerText = curWeaponData.maxAmmo ? inventory[activeSlot].ammo : '-';
+    if (reserveEl) reserveEl.innerText = curWeaponData.maxAmmo ? `/ ${inventory[activeSlot].reserveAmmo}` : '';
+    if (weaponEl) weaponEl.innerText = curWeaponData.name;
+}
+
+function build3DWeapon() {
+    if (!gunGroup) return;
+    while (gunGroup.children.length > 0) gunGroup.remove(gunGroup.children[0]);
+
+    const mDark = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, metalness: 0.7, roughness: 0.4 });
+    const mWood = new THREE.MeshStandardMaterial({ color: 0x5c3317, roughness: 0.8 });
+    let barrelOffsetZ = -0.45;
+    const curKey = getCurrentWeaponKey();
+
+    if (curKey === 'ak47') {
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.45), mDark);
+        const stock = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.08, 0.2), mWood); stock.position.set(0, -0.02, 0.3);
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.3), mDark); barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0.01, -0.45);
+        gunGroup.add(body, stock, barrel);
+    } else {
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.07, 0.35), mDark);
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.2), mDark); barrel.rotation.x = Math.PI / 2; barrel.position.set(0, 0, -0.27);
+        barrelOffsetZ = -0.37;
+        gunGroup.add(body, barrel);
+    }
+
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.6 });
+    const sleeveMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.9 });
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.2), sleeveMat);
+    arm.rotation.x = Math.PI / 2; arm.position.set(-0.03, -0.05, 0.1);
+    const hand = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.025, 0.03), skinMat);
+    hand.position.set(-0.02, -0.01, -0.05);
+    gunGroup.add(arm, hand);
+
+    gunGroup.position.set(0.18, -0.22, -0.3);
 }
 
 function initGameEngine() {
@@ -59,9 +99,11 @@ function initGameEngine() {
 
     buildMapGeometries(scene, selectedMap);
 
+    // Cria e adiciona a arma na câmera do jogador
     gunGroup = new THREE.Group();
     camera.add(gunGroup); 
     scene.add(camera);
+    build3DWeapon();
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -72,12 +114,16 @@ function initGameEngine() {
 }
 
 function setupEvents() {
+    document.addEventListener('pointerlockchange', () => {
+        pointerLocked = !!document.pointerLockElement;
+    });
+
     document.addEventListener('mousemove', (e) => {
         if (!pointerLocked || isDead || buyMenuOpen) return;
         const sens = isAiming ? 0.0006 : 0.0015;
         cameraEuler.y -= e.movementX * sens;
         cameraEuler.x -= e.movementY * sens;
-        cameraEuler.x = Math.max(-Math.PI/2.1, Math.min(Math.PI/2.1, cameraEuler.x));
+        cameraEuler.x = Math.max(-Math.PI / 2.1, Math.min(Math.PI / 2.1, cameraEuler.x));
         camera.quaternion.setFromEuler(cameraEuler);
     });
 
@@ -120,7 +166,6 @@ function animate() {
         if (moveL) velocity.addScaledVector(camRight, -speed * delta);
         if (moveR) velocity.addScaledVector(camRight, speed * delta);
 
-        const oldPos = camera.position.clone();
         camera.position.x += velocity.x * delta;
         camera.position.z += velocity.z * delta;
 
@@ -148,10 +193,20 @@ function animate() {
     renderer.render(scene, camera);
 }
 
+// Quando clica no botão "INICIAR PARTIDA"
 btnStart.addEventListener('click', () => {
     document.getElementById('lobby-container').style.display = 'none';
     container.style.display = 'block';
+    
+    // Força a exibição de todos os elementos da interface (HUD)
+    document.getElementById('hud-bottom-left').style.display = 'flex';
+    document.getElementById('hud-bottom-right').style.display = 'flex';
+    document.getElementById('scoreboard').style.display = 'flex';
+    document.getElementById('buy-hint').style.display = 'block';
+    document.getElementById('crosshair').style.display = 'block';
+
     initGameEngine();
+    updateHUD();
     animate();
     document.body.requestPointerLock();
 });
