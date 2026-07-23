@@ -4,26 +4,37 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FPS Web Game 3D</title>
-    <link rel="stylesheet" href="style.css">
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="style.css">
+    <!-- PeerJS para Multiplayer -->
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <!-- Three.js para Gráficos 3D -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
+
+    <!-- Container do Jogo 3D -->
     <div id="canvas-container"></div>
+
+    <!-- Mira -->
     <div id="crosshair">+</div>
+
+    <!-- Efeito de Dano na Tela -->
     <div id="damage-overlay"></div>
     <div id="damage-indicator"></div>
 
+    <!-- Placar Superior (Dinâmico) -->
     <div id="scoreboard" style="display: none;">
         <div id="score-wrapper"></div>
     </div>
 
+    <!-- HUD Inferior Esquerdo (HP e Dinheiro) -->
     <div id="hud-bottom-left" class="hud-panel" style="display: none;">
         <div>HP: <span id="hp">100</span></div>
         <div>Dinheiro: <span id="money-display">$5000</span></div>
     </div>
 
+    <!-- HUD Inferior Direito (Munição e Arma) -->
     <div id="hud-bottom-right" class="hud-panel" style="display: none;">
         <div id="weapon-display">Desert Eagle</div>
         <div class="ammo-container">
@@ -31,16 +42,21 @@
         </div>
     </div>
 
+    <!-- Dica da Loja -->
     <div id="buy-hint" style="display: none;">Pressione [B] para abrir a Loja | Duplo [W] para Correr</div>
+
+    <!-- Mensagens de Rodada / Morte -->
     <div id="round-message"></div>
     <div id="kill-feed"></div>
 
+    <!-- Menu de Pausa -->
     <div id="pause-screen" style="display: none;">
         <h1>JOGO PAUSADO</h1>
         <p>Clique na tela para retornar ao combate</p>
         <button id="btn-resume">Retornar ao Jogo</button>
     </div>
 
+    <!-- Menu de Compra (Loja) -->
     <div id="buy-menu" class="hidden">
         <h2>LOJA DE EQUIPAMENTOS</h2>
         <p>Seu Saldo: <span id="buy-money-display">$5000</span></p>
@@ -57,13 +73,16 @@
         <button id="btn-close-buy">Fechar Loja [B]</button>
     </div>
 
+    <!-- Menu Inicial / Lobby -->
     <div id="lobby-container">
         <div class="lobby-box">
             <h1>FPS TÁTICO 3D</h1>
+            
             <div class="input-group">
                 <label>Seu Nick:</label>
                 <input type="text" id="player-nick" value="Striker">
             </div>
+
             <div class="input-group">
                 <label>Escolha o Mapa:</label>
                 <select id="map-select">
@@ -73,21 +92,24 @@
                     <option value="nuke">Nuke (Complexo Industrial)</option>
                 </select>
             </div>
+
             <div class="mode-select">
                 <button class="mode-btn active" id="mode-bot">Treino (Bots)</button>
                 <button class="mode-btn" id="mode-1v1">1v1 Online</button>
                 <button class="mode-btn" id="mode-2v2">3 Players Online</button>
             </div>
+
             <div id="net-link-section" style="display: none;">
                 <label>Link da Sala:</label>
                 <input type="text" id="lobby-link" readonly>
                 <p id="net-status-label">Aguardando conexão...</p>
             </div>
+
             <button id="btn-start" class="primary-btn">INICIAR PARTIDA</button>
         </div>
     </div>
 
-    <!-- Módulo Principal que gerencia a entrada -->
-   <script type="module" src="./src/main.js"></script>
+    <!-- Script Principal como Módulo ES6 -->
+    <script type="module" src="src/main.js"></script>
 </body>
 </html>
