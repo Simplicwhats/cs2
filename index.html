@@ -3,131 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FPS Tático CS2 - Web Edition</title>
-    <link rel="icon" href="data:,">
+    <title>3D CS Tactical Shooter</title>
     <link rel="stylesheet" href="style.css">
-    <!-- PeerJS para Multiplayer -->
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
-    <!-- Three.js para Gráficos 3D -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
 </head>
 <body>
-
-    <!-- Container do Jogo 3D -->
-    <div id="canvas-container"></div>
-
-    <!-- Mira Dinâmica CS2 -->
-    <div id="crosshair">
-        <div class="ch-line top"></div>
-        <div class="ch-line bottom"></div>
-        <div class="ch-line left"></div>
-        <div class="ch-line right"></div>
-        <div class="ch-dot"></div>
-    </div>
-
-    <!-- Filtro de Dano / Tela de Morte -->
-    <div id="damage-overlay"></div>
-    <div id="death-screen" style="display: none;"></div>
-
-    <!-- Placar Superior (Dinâmico) -->
-    <div id="scoreboard" style="display: none;">
-        <div id="score-wrapper"></div>
-    </div>
-
-    <!-- HUD Inferior Esquerdo (HP, Colete e Capacete) -->
-    <div id="hud-bottom-left" class="hud-panel" style="display: none;">
-        <div class="stat-row">
-            <span class="hud-label">HP</span>
-            <span id="hp">100</span>
-        </div>
-        <div class="stat-row">
-            <span class="hud-label">MONEY</span>
-            <span id="money-display" class="hud-green">$5000</span>
-        </div>
-        <div class="durability-container">
-            <div class="bar-label">COLETE</div>
-            <div class="bar-bg"><div id="armor-bar" class="bar-fill"></div></div>
-            <div class="bar-label">CAPACETE</div>
-            <div class="bar-bg"><div id="helmet-bar" class="bar-fill"></div></div>
-        </div>
-    </div>
-
-    <!-- HUD Inferior Direito (Munição e Arma) -->
-    <div id="hud-bottom-right" class="hud-panel" style="display: none;">
-        <div id="weapon-display">Desert Eagle</div>
-        <div class="ammo-container">
-            <span id="ammo">7</span><span id="reserve-ammo">/ 35</span>
-        </div>
-    </div>
-
-    <!-- Dica da Loja -->
-    <div id="buy-hint" style="display: none;">[B] Loja | [1, 2, 4 / Scroll] Armas/Granada | [W+W] Correr</div>
-
-    <!-- Mensagens de Rodada / Morte -->
-    <div id="round-message"></div>
-    <div id="kill-feed"></div>
-
-    <!-- Menu de Pausa -->
-    <div id="pause-screen" style="display: none;">
-        <h1>COMBATE PAUSADO</h1>
-        <p>Clique para retornar ao jogo</p>
-        <button id="btn-resume">RETORNAR AO JOGO</button>
-    </div>
-
-    <!-- Menu de Compra (Loja) -->
-    <div id="buy-menu" class="hidden">
-        <h2>LOJA TÁTICA DE EQUIPAMENTOS</h2>
-        <p>Saldo Disponível: <span id="buy-money-display">$5000</span></p>
-        <div class="buy-grid">
-            <button id="buy-deagle">Desert Eagle <br><span>$700</span></button>
-            <button id="buy-p90">P90 <br><span>$2350</span></button>
-            <button id="buy-ak47">AK-47 <br><span>$2700</span></button>
-            <button id="buy-m4a4">M4A4 <br><span>$3100</span></button>
-            <button id="buy-awp">AWP <br><span>$4750</span></button>
-            <button id="buy-armor">Colete Balístico <br><span>$650</span></button>
-            <button id="buy-helmet">Capacete <br><span>$350</span></button>
-            <button id="buy-grenade">Granada HE <br><span>$300</span></button>
-        </div>
-        <button id="btn-close-buy">FECHAR LOJA [B]</button>
-    </div>
-
-    <!-- Menu Inicial / Lobby CS2 Style -->
+    <!-- LOBBY PRINCIPAL -->
     <div id="lobby-container">
-        <div class="lobby-box">
-            <h1>CS2 WEB TACTICAL</h1>
-            
-            <div class="input-group">
-                <label>NOME DO JOGADOR:</label>
-                <input type="text" id="player-nick" value="Striker">
-            </div>
+        <h1>TACTICAL SHOOTER 3D</h1>
+        <div class="lobby-card">
+            <label for="player-nick">NICKNAME:</label>
+            <input type="text" id="player-nick" value="Striker" maxlength="15">
 
-            <div class="input-group">
-                <label>MAPA DE COMBATE:</label>
-                <select id="map-select">
-                    <option value="dust2">Dust II (Deserto)</option>
-                    <option value="mirage">Mirage (Urbano)</option>
-                    <option value="inferno">Inferno (Vilarejo)</option>
-                    <option value="nuke">Nuke (Complexo)</option>
-                </select>
-            </div>
+            <label for="map-select">MAPA:</label>
+            <select id="map-select">
+                <option value="dust2">Dust II</option>
+                <option value="mirage">Mirage</option>
+                <option value="inferno">Inferno</option>
+                <option value="nuke">Nuke</option>
+            </select>
 
-            <div class="mode-select">
-                <button class="mode-btn active" id="mode-bot">Treino (Bots)</button>
-                <button class="mode-btn" id="mode-1v1">1v1 Online</button>
-                <button class="mode-btn" id="mode-2v2">3 Players Online</button>
+            <label>MODO DE JOGO:</label>
+            <div class="mode-selector">
+                <button id="mode-bot" class="mode-btn active">VS BOTS</button>
+                <button id="mode-online" class="mode-btn">MULTIPLAYER</button>
             </div>
 
             <div id="net-link-section" style="display: none;">
-                <label>Link da Sala:</label>
-                <input type="text" id="lobby-link" readonly>
-                <p id="net-status-label">Aguardando conexão...</p>
+                <label for="room-id">SALA ONLINE:</label>
+                <input type="text" id="room-id" value="sala-1" maxlength="10">
             </div>
 
-            <button id="btn-start" class="primary-btn">ENTRAR NA PARTIDA</button>
+            <button id="btn-start" class="btn-primary">ENTRAR EM COMBATE</button>
         </div>
     </div>
 
-    <!-- Script Principal como Módulo ES6 -->
+    <!-- CANVAS 3D -->
+    <div id="canvas-container"></div>
+
+    <!-- OVERLAYS E HUD -->
+    <div id="crosshair"></div>
+    <div id="damage-overlay"></div>
+    <div id="kill-feed"></div>
+
+    <!-- PLACAR DE PONTOS -->
+    <div id="scoreboard">
+        <div id="score-wrapper"></div>
+    </div>
+
+    <div id="buy-hint">[ B ] - LOJA DE ARMAS</div>
+    <div id="round-message"></div>
+
+    <!-- HUD BOTTOM LEFT: VIDA & COLETE -->
+    <div id="hud-bottom-left">
+        <div class="hud-bar-container">
+            <span class="hud-label">HP</span>
+            <span id="hp">100</span>
+        </div>
+        <div class="hud-status">
+            <div class="status-bar-bg"><div id="armor-bar" style="width: 0%;"></div></div>
+            <div class="status-bar-bg"><div id="helmet-bar" style="width: 0%;"></div></div>
+        </div>
+    </div>
+
+    <!-- HUD BOTTOM RIGHT: MUNIÇÃO & DINHEIRO -->
+    <div id="hud-bottom-right">
+        <div id="money-display">$5000</div>
+        <div id="weapon-display">Desert Eagle</div>
+        <div class="ammo-wrapper">
+            <span id="ammo">7</span>
+            <span id="reserve-ammo">/ 35</span>
+        </div>
+    </div>
+
+    <!-- TELA DE MORTE -->
+    <div id="death-screen">
+        <h2>VOCÊ MORREU</h2>
+        <p>Aguarde o respawn tático...</p>
+    </div>
+
+    <!-- PAUSA DA SESSÃO -->
+    <div id="pause-screen">
+        <h1>JOGO PAUSADO</h1>
+        <p>Clique na tela para retornar ao combate</p>
+        <button id="btn-resume" class="btn-primary">CONTINUAR</button>
+    </div>
+
+    <!-- MENU DE COMPRAS (TECLA B) -->
+    <div id="buy-menu" class="hidden">
+        <div class="buy-header">
+            <h2>LOJA TÁTICA</h2>
+            <div id="buy-money-display">$5000</div>
+        </div>
+        <div class="buy-grid">
+            <div class="buy-column">
+                <h3>EQUIPAMENTOS</h3>
+                <button id="buy-armor">COLETE ($650)</button>
+                <button id="buy-helmet">CAPACETE ($350)</button>
+                <button id="buy-grenade">GRANADA HE ($300)</button>
+            </div>
+            <div class="buy-column">
+                <h3>SECUNDÁRIAS</h3>
+                <button id="buy-deagle">DESERT EAGLE ($700)</button>
+            </div>
+            <div class="buy-column">
+                <h3>PRIMÁRIAS</h3>
+                <button id="buy-p90">P90 ($2350)</button>
+                <button id="buy-ak47">AK-47 ($2700)</button>
+                <button id="buy-m4a4">M4A4 ($3100)</button>
+                <button id="buy-awp">AWP ($4750)</button>
+            </div>
+        </div>
+        <button id="btn-close-buy" class="btn-secondary">FECHAR [ B ]</button>
+    </div>
+
     <script type="module" src="src/main.js"></script>
 </body>
 </html>
