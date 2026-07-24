@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { itemsConfig, safeSpawns } from './config.js';
 import { playShootSound, playExplosionSound, playReloadSound } from './audio.js';
 import { buildMapGeometries, collidables, wallMeshes, mapWallMeshes } from './map.js';
