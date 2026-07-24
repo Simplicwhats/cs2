@@ -368,23 +368,29 @@ function animate() {
         const oldPos = camera.position.clone();
         camera.position.x += velocity.x * delta; camera.position.z += velocity.z * delta;
         
-        // Simples gravidade para andar no chão lido do modelo 3D
+        // DESATIVAMOS A GRAVIDADE (Para você poder voar apertando Espaço)
+        // camera.position.y += velocity.y * delta;
+        // if (camera.position.y < currentHeight) { camera.position.y = currentHeight; velocity.y = 0; canJump = true; }
+        
+        // GATILHO PARA SEMPRE PODER PULAR NESTE MODO
+        canJump = true; 
         camera.position.y += velocity.y * delta;
-        if (camera.position.y < currentHeight) { camera.position.y = currentHeight; velocity.y = 0; canJump = true; }
 
+        // DESATIVAMOS A COLISÃO (Para você atravessar paredes)
+        /*
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
         for (let box of collidables) {
             if (playerBox.intersectsBox(box)) { camera.position.x = oldPos.x; camera.position.z = oldPos.z; break; }
         }
+        */
     }
     
     if (cameraEuler.x > 0 && !isMouseDown) { cameraEuler.x = Math.max(0, cameraEuler.x - delta * 0.5); camera.quaternion.setFromEuler(cameraEuler); }
 
     sendNetworkData();
     prevTime = time;
-    if (composer && scene && camera) composer.render(); 
+    if (renderer && scene && camera) renderer.render(scene, camera); 
 }
-
 btnStart.addEventListener('click', () => {
     playerNick = document.getElementById('player-nick').value || "Striker";
     gameMode = document.querySelector('.mode-btn.active').id === 'mode-bot' ? 'bot' : 'online';
