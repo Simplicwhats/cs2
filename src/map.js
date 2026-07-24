@@ -19,18 +19,19 @@ export function buildMapGeometries(scene) {
     const loader = new GLTFLoader();
     
     // CARREGA O MAPA 3D DA PASTA MODELS
-   loader.load('models/mapa.glb', (gltf) => {
+    loader.load('models/mapa.glb', (gltf) => {
         const mapModel = gltf.scene;
         
+        // Ajusta tamanho se necessário (depende do arquivo que você baixou)
         mapModel.scale.set(1, 1, 1); 
         mapModel.position.set(0, 0, 0);
         
         mapModel.traverse((child) => {
             if (child.isMesh) {
-                // 1. DESLIGAMOS AS SOMBRAS (Para evitar que o mapa fique escuro)
-                child.castShadow = false;
-                child.receiveShadow = false;
+                child.castShadow = true;
+                child.receiveShadow = true;
                 
+                // Cria caixa de colisão para CADA parede do modelo 3D
                 const box = new THREE.Box3().setFromObject(child);
                 box.userData = { mesh: child };
                 collidables.push(box);
@@ -39,11 +40,7 @@ export function buildMapGeometries(scene) {
             }
         });
         
-        // 2. ADICIONA O MAPA À CENA
-        // DICA: Se a tela CONTINUAR preta após salvar, coloque duas barras na frente 
-        // da linha abaixo para esconder o mapa inteiro: // scene.add(mapModel);
-       // scene.add(mapModel);
-        
+        scene.add(mapModel);
         mapLoaded = true;
         console.log("Mapa 3D carregado com sucesso!");
     }, undefined, (error) => {
