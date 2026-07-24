@@ -101,17 +101,14 @@ function createFunctionalBuilding(scene, x, z, width, depth, height, mat, trimMa
     const floorH = 6.0; 
     const doorWidth = 5.0;
 
-    // Paredes Principais
     createBlock(scene, x, height/2, z - depth/2, width, height, wallT, mat);
     createBlock(scene, x - width/2, height/2, z, wallT, height, depth, mat);
     createBlock(scene, x + width/2, height/2, z, wallT, height, depth, mat);
 
-    // Entrada Térrea
     const sideWallW = (width - doorWidth) / 2;
     createBlock(scene, x - width/2 + sideWallW/2, floorH/2, z + depth/2, sideWallW, floorH, wallT, mat);
     createBlock(scene, x + width/2 - sideWallW/2, floorH/2, z + depth/2, sideWallW, floorH, wallT, mat);
 
-    // Abertura Superior REAL para acesso à varanda
     if (addBalcony) {
         const doorHeightUpper = 3.5;
         const upperWallH = height - floorH - doorHeightUpper;
@@ -124,7 +121,6 @@ function createFunctionalBuilding(scene, x, z, width, depth, height, mat, trimMa
 
     createBlock(scene, x, height + 0.4, z, width + 0.6, 0.8, depth + 0.6, trimMat);
 
-    // Piso Intermediário Ajustado Sem Vãos
     const innerW = width - wallT * 2;
     const innerD = depth - wallT * 2;
     const holeSizeX = 4.5;
@@ -133,7 +129,6 @@ function createFunctionalBuilding(scene, x, z, width, depth, height, mat, trimMa
     createBlock(scene, x - holeSizeX/2, floorH, z, innerW - holeSizeX, 0.4, innerD, mat);
     createBlock(scene, x + (innerW - holeSizeX)/2 - 0.2, floorH, z - holeSizeZ/2, holeSizeX, 0.4, innerD - holeSizeZ, mat);
 
-    // Rampa / Escada Acoplada Perfeitamente ao Piso Superior
     const rampLength = 9.5;
     const rampWidth = holeSizeX - 0.2;
     const rampGeo = new THREE.BoxGeometry(rampWidth, 0.3, rampLength);
@@ -147,7 +142,6 @@ function createFunctionalBuilding(scene, x, z, width, depth, height, mat, trimMa
     scene.add(ramp);
     wallMeshes.push(ramp); mapWallMeshes.push(ramp);
 
-    // Varanda
     if (addBalcony) {
         const balcDepth = 3.5;
         const balcWidth = width * 0.7;
@@ -163,27 +157,38 @@ export function buildMapGeometries(scene, selectedMap) {
     wallMeshes.length = 0; 
     mapWallMeshes.length = 0;
     
-    let fColor = 0xb59268, wColor = '#c2a882', bColor = '#8a6543', trimColor = '#5c4128', winColor = '#3a2717';
+    let fColor = 0xb59268, wColor = '#d8cca8', bColor = '#8a6543', trimColor = '#5c4128', winColor = '#3a2717';
     
     if (selectedMap === 'mirage') {
-        fColor = 0x8c7c68; wColor = '#b8a68d'; bColor = '#4a607a'; trimColor = '#2b3a4a'; winColor = '#1f2833';
+        fColor = 0xa48d72; wColor = '#ccba99'; bColor = '#4a607a'; trimColor = '#2b3a4a'; winColor = '#1f2833';
     } else if (selectedMap === 'inferno') {
-        fColor = 0x474747; wColor = '#8a3c2c'; bColor = '#5e7363'; trimColor = '#3a2118'; winColor = '#24140e';
+        fColor = 0x5a5045; wColor = '#a86554'; bColor = '#5e7363'; trimColor = '#3a2118'; winColor = '#24140e';
     } else if (selectedMap === 'nuke') {
-        fColor = 0x22272c; wColor = '#5a6978'; bColor = '#2d5573'; trimColor = '#1a2228'; winColor = '#0f171e';
+        fColor = 0x3b424a; wColor = '#7a8999'; bColor = '#2d5573'; trimColor = '#1a2228'; winColor = '#0f171e';
     }
 
     const hexFloor = '#' + fColor.toString(16).padStart(6, '0');
-    const fMat = new THREE.MeshStandardMaterial({ map: createWallTexture(hexFloor, "rgba(0,0,0,0.12)", 'grid'), roughness: 0.7 });
-    const wMat = new THREE.MeshStandardMaterial({ map: createWallTexture(wColor, "rgba(0,0,0,0.2)", 'brick'), roughness: 0.6 });
-    const bMat = new THREE.MeshStandardMaterial({ map: createWallTexture(bColor, "rgba(0,0,0,0.22)", 'grid'), roughness: 0.6 });
-    const trimMat = new THREE.MeshStandardMaterial({ color: trimColor, roughness: 0.4, metalness: 0.2 });
-    const winMat = new THREE.MeshStandardMaterial({ color: winColor, metalness: 0.8, roughness: 0.2 });
+    
+    const fMat = new THREE.MeshStandardMaterial({ 
+        map: createWallTexture(hexFloor, "rgba(0,0,0,0.3)", 'grid'), 
+        roughness: 0.8, 
+        metalness: 0.1 
+    });
+    
+    const wMat = new THREE.MeshStandardMaterial({ 
+        map: createWallTexture(wColor, "rgba(0,0,0,0.4)", 'brick'), 
+        roughness: 0.9,
+        bumpMap: createWallTexture(wColor, "rgba(255,255,255,1.0)", 'brick'),
+        bumpScale: 0.02
+    });
+    
+    const bMat = new THREE.MeshStandardMaterial({ map: createWallTexture(bColor, "rgba(0,0,0,0.3)", 'grid'), roughness: 0.7 });
+    const trimMat = new THREE.MeshStandardMaterial({ color: trimColor, roughness: 0.5, metalness: 0.3 });
+    const winMat = new THREE.MeshStandardMaterial({ color: winColor, metalness: 0.9, roughness: 0.1 });
 
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(320, 320), fMat);
     floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
 
-    // Muros Perimetrais
     createBlock(scene, 0, 10, -160, 320, 20, 4, wMat); 
     createBlock(scene, 0, 10, 160, 320, 20, 4, wMat);
     createBlock(scene, -160, 10, 0, 4, 20, 320, wMat); 
@@ -204,13 +209,11 @@ export function buildMapGeometries(scene, selectedMap) {
         createFunctionalBuilding(scene, b.x, b.z, b.w, b.d, b.h, b.mat, trimMat, winMat, b.hasBalcony);
     });
 
-    // Elementos do Mapa
-    const boxMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.7 });
+    const boxMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.9, metalness: 0.1 });
     createBlock(scene, 15, 1.8, 15, 3.6, 3.6, 3.6, boxMat);
     createBlock(scene, -20, 1.8, 30, 4.0, 3.6, 4.0, boxMat);
     createBlock(scene, 0, 1.8, -40, 5.0, 3.6, 3.6, boxMat);
 
-    // Árvores e Veículos
     createTree(scene, 25, 25);
     createTree(scene, -25, -25);
     createTree(scene, 35, -35);
