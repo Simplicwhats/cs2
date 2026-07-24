@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 export let collidables = [];
 export let wallMeshes = [];
 export let mapWallMeshes = [];
