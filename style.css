@@ -308,3 +308,48 @@ body, html {
     padding: 10px;
     cursor: pointer;
 }
+/* --- MIRAS E SCOPE (ADICIONAR NO FINAL DO CSS) --- */
+#crosshair {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 100;
+    transition: all 0.05s ease;
+}
+
+/* Mira Padrão (Rifles) */
+.crosshair-standard {
+    width: 24px; height: 24px;
+    background: 
+        linear-gradient(to right, lime 2px, transparent 2px) 0 50% / 8px 2px no-repeat,
+        linear-gradient(to right, transparent 2px, lime 2px) 100% 50% / 8px 2px no-repeat,
+        linear-gradient(to bottom, lime 2px, transparent 2px) 50% 0 / 2px 8px no-repeat,
+        linear-gradient(to bottom, transparent 2px, lime 2px) 50% 100% / 2px 8px no-repeat;
+}
+
+/* Mira Pistola/SMG (Menor) */
+.crosshair-small {
+    width: 14px; height: 14px;
+    background: 
+        linear-gradient(to right, cyan 2px, transparent 2px) 0 50% / 4px 2px no-repeat,
+        linear-gradient(to right, transparent 2px, cyan 2px) 100% 50% / 4px 2px no-repeat,
+        linear-gradient(to bottom, cyan 2px, transparent 2px) 50% 0 / 2px 4px no-repeat,
+        linear-gradient(to bottom, transparent 2px, cyan 2px) 50% 100% / 2px 4px no-repeat;
+}
+
+/* Efeito de Lente da AWP (Tela Preta com furo no meio) */
+#scope-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    background: radial-gradient(circle at center, transparent 30%, black 50%, black 100%);
+    pointer-events: none;
+    display: none;
+    z-index: 90;
+}
+#scope-overlay::before, #scope-overlay::after {
+    content: ''; position: absolute; background: rgba(0, 0, 0, 0.8);
+}
+#scope-overlay::before { top: 50%; left: 0; width: 100%; height: 2px; } /* Linha Horizontal */
+#scope-overlay::after { top: 0; left: 50%; width: 2px; height: 100%; } /* Linha Vertical */
