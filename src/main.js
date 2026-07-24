@@ -186,6 +186,13 @@ const cuboTeste = new THREE.Mesh(
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.innerHTML = '';
+    container.style.position = 'absolute';
+    container.style.top = '0';
+    container.style.left = '0';
+    container.style.width = '100vw';
+    container.style.height = '100vh';
+    container.style.zIndex = '1';
+    document.getElementById('crosshair').style.zIndex = '100'; // Garante a mira na frente
     container.appendChild(renderer.domElement);
 
     const renderScene = new RenderPass(scene, camera);
@@ -356,47 +363,18 @@ function setupBuyMenuEvents() {
 
 function animate() {
     requestAnimationFrame(animate);
-    const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
 
-    if (pointerLocked && !isDead && !buyMenuOpen) {
-        if (isMouseDown && itemsConfig[getCurrentWeaponKey()].auto) shoot();
-
-        const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir); camDir.y = 0; camDir.normalize();
-        const camRight = new THREE.Vector3().crossVectors(camDir, camera.up).normalize();
-
-        velocity.x -= velocity.x * 10.0 * delta; velocity.z -= velocity.z * 10.0 * delta; velocity.y -= 9.8 * 4.2 * delta;
-
-        let speed = isRunning ? 115 : 68;
-        if (moveF) velocity.addScaledVector(camDir, speed * delta);
-        if (moveB) velocity.addScaledVector(camDir, -speed * delta);
-        if (moveL) velocity.addScaledVector(camRight, -speed * delta);
-        if (moveR) velocity.addScaledVector(camRight, speed * delta);
-
-        const oldPos = camera.position.clone();
-        camera.position.x += velocity.x * delta; camera.position.z += velocity.z * delta;
-        
-        // DESATIVAMOS A GRAVIDADE (Para você poder voar apertando Espaço)
-        // camera.position.y += velocity.y * delta;
-        // if (camera.position.y < currentHeight) { camera.position.y = currentHeight; velocity.y = 0; canJump = true; }
-        
-        // GATILHO PARA SEMPRE PODER PULAR NESTE MODO
-        canJump = true; 
-        camera.position.y += velocity.y * delta;
-
-        // DESATIVAMOS A COLISÃO (Para você atravessar paredes)
-        /*
-        playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
-        for (let box of collidables) {
-            if (playerBox.intersectsBox(box)) { camera.position.x = oldPos.x; camera.position.z = oldPos.z; break; }
-        }
-        */
-    }
+    // 1. TRAVA A CÂMERA EM UMA POSIÇÃO EXATA
+    // Se algum cálculo de velocidade estava quebrando a tela, isso resolve na hora.
+    camera.position.set(0, 1.8, 0); 
     
-    if (cameraEuler.x > 0 && !isMouseDown) { cameraEuler.x = Math.max(0, cameraEuler.x - delta * 0.5); camera.quaternion.setFromEuler(cameraEuler); }
+    // 2. OBRIGA A CÂMERA A OLHAR PARA O CUBO DE TESTE (Cubo está no Z: -5)
+    camera.lookAt(0, 1.8, -5);
 
-    sendNetworkData();
-    prevTime = time;
-    if (renderer && scene && camera) renderer.render(scene, camera); 
+    // 3. RENDERIZA O JOGO SEM FRESCURA DE POST-PROCESSING
+    if (renderer && scene && camera) {
+        renderer.render(scene, camera); 
+    }
 }
 btnStart.addEventListener('click', () => {
     playerNick = document.getElementById('player-nick').value || "Striker";
