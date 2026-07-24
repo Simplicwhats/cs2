@@ -42,7 +42,7 @@ export function buildMapGeometries(scene) {
         // 2. ADICIONA O MAPA À CENA
         // DICA: Se a tela CONTINUAR preta após salvar, coloque duas barras na frente 
         // da linha abaixo para esconder o mapa inteiro: // scene.add(mapModel);
-        scene.add(mapModel);
+       // scene.add(mapModel);
         
         mapLoaded = true;
         console.log("Mapa 3D carregado com sucesso!");
