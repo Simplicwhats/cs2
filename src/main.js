@@ -186,6 +186,7 @@ const cuboTeste = new THREE.Mesh(
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.innerHTML = '';
+    container.style.display = 'block';
     container.style.position = 'absolute';
     container.style.top = '0';
     container.style.left = '0';
