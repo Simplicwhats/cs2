@@ -1,4 +1,7 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { itemsConfig, safeSpawns } from './config.js';
 import { playShootSound, playExplosionSound, playReloadSound } from './audio.js';
 import { buildMapGeometries, collidables, wallMeshes, mapWallMeshes } from './map.js';
@@ -20,7 +23,7 @@ let armorDurability = 0;
 let helmetDurability = 0;
 
 let lastShotTime = 0, isAiming = false, pointerLocked = false, buyMenuOpen = false, isMouseDown = false;
-let scene, camera, renderer, prevTime = performance.now();
+let scene, camera, renderer, composer, prevTime = performance.now();
 let moveF = false, moveB = false, moveL = false, moveR = false, canJump = true;
 let isRunning = false, isCrouching = false;
 let velocity = new THREE.Vector3(), currentHeight = 1.8;
@@ -36,6 +39,10 @@ let playerScores = {};
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 let playerBox = new THREE.Box3();
 let usedSpawns = [];
+
+// Variáveis de Rede P2P
+let peer, conn;
+let peers = {};
 
 const btnStart = document.getElementById('btn-start');
 const container = document.getElementById('canvas-container');
@@ -128,11 +135,9 @@ function createNetworkPlayer(id, nick) {
     const armLeft = new THREE.Mesh(armGeo, matUniform); armLeft.position.set(-0.36, 1.25, 0);
     const armRight = new THREE.Mesh(armGeo, matUniform); armRight.position.set(0.36, 1.25, 0);
 
-    // Arma 3D visível no Bot/Inimigo
     const rifle = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.8), matGun);
     rifle.position.set(0.2, 1.25, -0.35); rifle.rotation.x = 0.1;
 
-    // Flash de Disparo do Bot
     const bFlash = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0 }));
     bFlash.position.set(0.2, 1.25, -0.8);
     group.add(legLeft, legRight, torso, vest, head, helmet, armLeft, armRight, rifle, bFlash);
@@ -249,14 +254,18 @@ function initGameEngine() {
     const startSpawn = getSafeSpawn(null);
     camera.position.copy(startSpawn); 
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.65); 
-    scene.add(ambientLight);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.4);
+    scene.add(hemiLight);
     
-    const dirLight = new THREE.DirectionalLight(0xfffaed, 1.4);
+    const dirLight = new THREE.DirectionalLight(0xfff0dd, 2.5); 
     dirLight.position.set(120, 200, 90); 
     dirLight.castShadow = true;
-    dirLight.shadow.mapSize.width = 2048;
-    dirLight.shadow.mapSize.height = 2048;
+    dirLight.shadow.camera.top = 100;
+    dirLight.shadow.camera.bottom = -100;
+    dirLight.shadow.camera.left = -100;
+    dirLight.shadow.camera.right = 100;
+    dirLight.shadow.mapSize.width = 4096;
+    dirLight.shadow.mapSize.height = 4096;
     scene.add(dirLight);
 
     buildMapGeometries(scene, selectedMap);
@@ -273,13 +282,69 @@ function initGameEngine() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.15;
+    renderer.toneMappingExposure = 1.2;
 
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
+    const renderScene = new RenderPass(scene, camera);
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.3, 0.4, 0.85);
+    composer = new EffectComposer(renderer);
+    composer.addPass(renderScene);
+    composer.addPass(bloomPass);
+
     setupEvents();
     setupBuyMenuEvents();
+
+    if (gameMode === 'online') initMultiplayer();
+}
+
+function initMultiplayer() {
+    const roomId = document.getElementById('room-id').value || "sala-1";
+    
+    peer = new Peer(playerNick + "_" + Math.floor(Math.random() * 1000)); 
+
+    peer.on('open', (id) => {
+        showKillFeed("Conectado ao servidor P2P!");
+        conn = peer.connect("host_" + roomId);
+        
+        conn.on('open', () => {
+            conn.send({ type: 'join', nick: playerNick });
+        });
+    });
+
+    peer.on('connection', (connection) => {
+        peers[connection.peer] = connection;
+        createNetworkPlayer(connection.peer, "Inimigo"); 
+        
+        connection.on('data', (data) => {
+            if (data.type === 'pos') {
+                const netPlayer = networkPlayers[connection.peer];
+                if (netPlayer) {
+                    netPlayer.position.lerp(new THREE.Vector3(data.x, data.y, data.z), 0.3);
+                    netPlayer.rotation.y = data.rot;
+                }
+            }
+            if (data.type === 'shoot') {
+                playShootSound(); 
+            }
+        });
+    });
+}
+
+function sendNetworkData() {
+    if (!peer || gameMode !== 'online') return;
+    const posData = {
+        type: 'pos',
+        x: camera.position.x,
+        y: camera.position.y - 0.8,
+        z: camera.position.z,
+        rot: cameraEuler.y
+    };
+    
+    Object.values(peers).forEach(connection => {
+        if (connection.open) connection.send(posData);
+    });
 }
 
 function setupBuyMenuEvents() {
@@ -338,6 +403,7 @@ function setupEvents() {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
+        if (composer) composer.setSize(window.innerWidth, window.innerHeight);
     });
 
     window.addEventListener('wheel', (e) => {
@@ -472,6 +538,12 @@ function shoot() {
     lastShotTime = now; inventory[activeSlot].ammo--; updateHUD();
     playShootSound();
 
+    if (gameMode === 'online') {
+        Object.values(peers).forEach(c => {
+            if (c.open) c.send({ type: 'shoot' });
+        });
+    }
+
     const recoilVal = cfg.recoil || 0.015;
     cameraEuler.x += recoilVal;
     cameraEuler.y += (Math.random() - 0.5) * recoilVal * 0.8;
@@ -566,7 +638,6 @@ function restartRound() {
     activeSlot = 'secondary';
     armorDurability = 0; helmetDurability = 0;
     
-    // Zera os eixos de rotação da câmera (Sem visão deitada)
     cameraEuler.set(0, 0, 0, 'YXZ');
     camera.quaternion.setFromEuler(cameraEuler);
 
@@ -634,7 +705,6 @@ function animate() {
         camera.quaternion.setFromEuler(cameraEuler);
     }
 
-    // Gerenciador de Linhas Traçantes
     for (let i = tracers.length - 1; i >= 0; i--) {
         tracers[i].life -= delta;
         if (tracers[i].life <= 0) {
@@ -643,7 +713,6 @@ function animate() {
         }
     }
 
-    // Gerenciador de Granadas
     for (let i = activeGrenades.length - 1; i >= 0; i--) {
         const g = activeGrenades[i];
         g.timer -= delta;
@@ -728,15 +797,28 @@ function animate() {
         }
 
         if (camera.position.y < currentHeight) { camera.position.y = currentHeight; velocity.y = 0; canJump = true; }
+        
+        if (!isDead && !isAiming && (moveF || moveB || moveL || moveR) && canJump) {
+            const bobFrequency = isRunning ? 15 : 10;
+            const bobAmplitude = isRunning ? 0.08 : 0.04;
+            camera.position.y += Math.sin(time * bobFrequency / 1000) * bobAmplitude;
+        }
+    }
+    
+    if (cameraEuler.x > 0 && !isMouseDown) {
+        cameraEuler.x -= delta * 0.5;
+        cameraEuler.x = Math.max(0, cameraEuler.x);
+        camera.quaternion.setFromEuler(cameraEuler);
     }
 
     updateBotLogic(gameMode, isDead, bots, camera, delta, time, takeDamage);
+    
+    sendNetworkData(); 
 
     prevTime = time;
-    if (renderer && scene && camera) renderer.render(scene, camera);
+    if (composer && scene && camera) composer.render(); 
 }
 
-// Inicialização de UI
 document.querySelectorAll('.mode-btn').forEach(btn => {
     btn.onclick = () => {
         document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
