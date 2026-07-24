@@ -3,17 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D CS Tactical Shooter</title>
-
-    <!-- Evita o erro 404 do favicon.ico -->
+    <title>CS2 Web Clone</title>
     <link rel="icon" href="data:,">
-
     <link rel="stylesheet" href="style.css">
 
-    <!-- Script do PeerJS para o Multiplayer -->
+    <!-- PeerJS para Multiplayer -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 
-    <!-- IMPORTMAP COM POST-PROCESSING -->
+    <!-- Import Map com THREE.js e Loaders -->
     <script type="importmap">
         {
             "imports": {
@@ -24,106 +21,63 @@
     </script>
 </head>
 <body>
-    <!-- LOBBY PRINCIPAL -->
     <div id="lobby-container">
-        <h1>TACTICAL SHOOTER 3D</h1>
+        <h1>CS2 WEB EDITION</h1>
         <div class="lobby-card">
-            <label for="player-nick">NICKNAME:</label>
-            <input type="text" id="player-nick" value="Striker" maxlength="15">
-
-            <label for="map-select">MAPA:</label>
-            <select id="map-select">
-                <option value="dust2">Dust II</option>
-                <option value="mirage">Mirage</option>
-                <option value="inferno">Inferno</option>
-                <option value="nuke">Nuke</option>
-            </select>
-
+            <label>NICKNAME:</label> <input type="text" id="player-nick" value="Striker" maxlength="15">
             <label>MODO DE JOGO:</label>
             <div class="mode-selector">
                 <button id="mode-bot" class="mode-btn active">VS BOTS</button>
                 <button id="mode-online" class="mode-btn">MULTIPLAYER</button>
             </div>
-
             <div id="net-link-section" style="display: none;">
-                <label for="room-id">SALA ONLINE:</label>
-                <input type="text" id="room-id" value="sala-1" maxlength="10">
+                <label>SALA ONLINE (Digite a mesma que seu amigo):</label>
+                <input type="text" id="room-id" value="dust2-server" maxlength="15">
             </div>
-
-            <button id="btn-start" class="btn-primary">ENTRAR EM COMBATE</button>
+            <button id="btn-start" class="btn-primary">ENTRAR NO SERVIDOR</button>
         </div>
     </div>
 
-    <!-- CANVAS 3D -->
     <div id="canvas-container"></div>
-
-    <!-- OVERLAYS E HUD -->
-    <div id="crosshair"></div>
+    <div id="crosshair" class="crosshair-standard"></div>
+    <div id="scope-overlay"></div> <!-- NOVO: Lente da AWP -->
     <div id="damage-overlay"></div>
     <div id="kill-feed"></div>
-
-    <!-- PLACAR DE PONTOS -->
-    <div id="scoreboard">
-        <div id="score-wrapper"></div>
-    </div>
-
+    
+    <div id="scoreboard"><div id="score-wrapper"></div></div>
     <div id="buy-hint">[ B ] - LOJA DE ARMAS</div>
     <div id="round-message"></div>
 
-    <!-- HUD BOTTOM LEFT: VIDA & COLETE -->
     <div id="hud-bottom-left">
-        <div class="hud-bar-container">
-            <span class="hud-label">HP</span>
-            <span id="hp">100</span>
-        </div>
+        <div class="hud-bar-container"><span class="hud-label">HP</span><span id="hp">100</span></div>
         <div class="hud-status">
             <div class="status-bar-bg"><div id="armor-bar" style="width: 0%;"></div></div>
             <div class="status-bar-bg"><div id="helmet-bar" style="width: 0%;"></div></div>
         </div>
     </div>
 
-    <!-- HUD BOTTOM RIGHT: MUNIÇÃO & DINHEIRO -->
     <div id="hud-bottom-right">
         <div id="money-display">$5000</div>
         <div id="weapon-display">Desert Eagle</div>
-        <div class="ammo-wrapper">
-            <span id="ammo">7</span>
-            <span id="reserve-ammo">/ 35</span>
-        </div>
+        <div class="ammo-wrapper"><span id="ammo">7</span><span id="reserve-ammo">/ 35</span></div>
     </div>
 
-    <!-- TELA DE MORTE -->
-    <div id="death-screen">
-        <h2>VOCÊ MORREU</h2>
-        <p>Aguarde o respawn tático...</p>
-    </div>
+    <div id="death-screen"><h2>VOCÊ MORREU</h2><p>Aguarde...</p></div>
+    <div id="pause-screen"><h1>JOGO PAUSADO</h1><button id="btn-resume" class="btn-primary">CONTINUAR</button></div>
 
-    <!-- PAUSA DA SESSÃO -->
-    <div id="pause-screen">
-        <h1>JOGO PAUSADO</h1>
-        <p>Clique na tela para retornar ao combate</p>
-        <button id="btn-resume" class="btn-primary">CONTINUAR</button>
-    </div>
-
-    <!-- MENU DE COMPRAS (TECLA B) -->
+    <!-- MENU DE COMPRAS RESUMIDO -->
     <div id="buy-menu" class="hidden">
-        <div class="buy-header">
-            <h2>LOJA TÁTICA</h2>
-            <div id="buy-money-display">$5000</div>
-        </div>
+        <div class="buy-header"><h2>LOJA TÁTICA</h2><div id="buy-money-display">$5000</div></div>
         <div class="buy-grid">
             <div class="buy-column">
-                <h3>EQUIPAMENTOS</h3>
+                <h3>EQUIP</h3>
                 <button id="buy-armor">COLETE ($650)</button>
                 <button id="buy-helmet">CAPACETE ($350)</button>
-                <button id="buy-grenade">GRANADA HE ($300)</button>
+                <button id="buy-grenade">GRANADA ($300)</button>
             </div>
+            <div class="buy-column"><h3>PISTOLAS</h3><button id="buy-deagle">DEAGLE ($700)</button></div>
             <div class="buy-column">
-                <h3>SECUNDÁRIAS</h3>
-                <button id="buy-deagle">DESERT EAGLE ($700)</button>
-            </div>
-            <div class="buy-column">
-                <h3>PRIMÁRIAS</h3>
+                <h3>RIFLES</h3>
                 <button id="buy-p90">P90 ($2350)</button>
                 <button id="buy-ak47">AK-47 ($2700)</button>
                 <button id="buy-m4a4">M4A4 ($3100)</button>
