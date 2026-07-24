@@ -179,8 +179,11 @@ function initGameEngine() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.innerHTML = '';
-    container.appendChild(renderer.domElement);
-
+    container.style.display = 'block'; // <--- ADICIONE ESTA LINHA AQUI!
+    container.style.position = 'absolute';
+    container.style.top = '0';
+    container.style.left = '0';
+    
     const renderScene = new RenderPass(scene, camera);
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.25, 0.4, 0.85);
     composer = new EffectComposer(renderer);
