@@ -2,25 +2,20 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { itemsConfig, safeSpawns } from './config.js';
 import { playShootSound, playExplosionSound, playReloadSound } from './audio.js';
 import { buildMapGeometries, collidables, wallMeshes, mapWallMeshes } from './map.js';
 import { updateBotLogic } from './bot.js';
 
 let gameMode = 'bot';
-let playerNick = "Striker", selectedMap = "dust2";
+let playerNick = "Striker";
 let playerMoney = 5000;
 
-let inventory = {
-    secondary: { key: 'deagle', ammo: 7, reserveAmmo: 35 },
-    primary: null,
-    grenade: null
-};
+let inventory = { secondary: { key: 'deagle', ammo: 7, reserveAmmo: 35 }, primary: null, grenade: null };
 const slotOrder = ['primary', 'secondary', 'grenade'];
 let activeSlot = 'secondary';
-
-let armorDurability = 0;
-let helmetDurability = 0;
+let armorDurability = 0, helmetDurability = 0;
 
 let lastShotTime = 0, isAiming = false, pointerLocked = false, buyMenuOpen = false, isMouseDown = false;
 let scene, camera, renderer, composer, prevTime = performance.now();
@@ -28,267 +23,166 @@ let moveF = false, moveB = false, moveL = false, moveR = false, canJump = true;
 let isRunning = false, isCrouching = false;
 let velocity = new THREE.Vector3(), currentHeight = 1.8;
 let hp = 100, isDead = false;
-let gunGroup, muzzleFlashMesh, muzzleLight;
 
-let activeGrenades = [];
-let tracers = [];
+// Sistema 3D de armas
+let gunGroup;
+let loadedWeapons = {}; // Cache de modelos 3D
+let currentWeaponModel = null;
+const gltfLoader = new GLTFLoader();
 
-let bots = []; 
-let networkPlayers = {}; 
-let playerScores = {}; 
+let activeGrenades = [], tracers = [], bots = [], networkPlayers = {}, playerScores = {}; 
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 let playerBox = new THREE.Box3();
 let usedSpawns = [];
 
-// Variáveis de Rede P2P
+// Multiplayer PeerJS Robusto (Compatível com GitHub Pages HTTPS)
 let peer, conn;
 let peers = {};
+let isHost = false;
 
 const btnStart = document.getElementById('btn-start');
 const container = document.getElementById('canvas-container');
 const pauseScreen = document.getElementById('pause-screen');
 const buyMenu = document.getElementById('buy-menu');
+const crosshairElem = document.getElementById('crosshair');
+const scopeOverlay = document.getElementById('scope-overlay');
 
-function getSafeSpawn(avoidPos) {
-    let bestPoint = safeSpawns[0];
-    let found = false;
-
-    for (let pt of safeSpawns) {
-        let testVec = new THREE.Vector3(pt.x, 1.8, pt.z);
-        let tooCloseToAvoid = avoidPos && avoidPos.distanceTo(testVec) < 20;
-        let alreadyUsed = usedSpawns.some(u => u.distanceTo(testVec) < 8);
-
-        if (!tooCloseToAvoid && !alreadyUsed) {
-            bestPoint = pt;
-            found = true;
-            break;
-        }
-    }
-
-    if (!found) {
-        let randomIndex = Math.floor(Math.random() * safeSpawns.length);
-        bestPoint = safeSpawns[randomIndex];
-    }
-
-    let spawnVec = new THREE.Vector3(bestPoint.x, 1.8, bestPoint.z);
-    usedSpawns.push(spawnVec);
-    return spawnVec;
+// 1. CARREGAMENTO PRÉVIO DAS ARMAS
+function preloadWeapons() {
+    const weaponsToLoad = ['ak47', 'm4a4', 'awp', 'deagle', 'p90'];
+    weaponsToLoad.forEach(w => {
+        gltfLoader.load(`models/${w}.glb`, (gltf) => {
+            const mesh = gltf.scene;
+            // Ajustes de posição padrão (varia conforme o modelo baixado)
+            mesh.scale.set(0.1, 0.1, 0.1);
+            mesh.position.set(0.2, -0.2, -0.4);
+            mesh.rotation.y = Math.PI; // Vira para frente
+            loadedWeapons[w] = mesh;
+        });
+    });
 }
 
-function getCurrentWeaponKey() {
-    return inventory[activeSlot] ? inventory[activeSlot].key : 'deagle';
+function getSafeSpawn() { return new THREE.Vector3(0, 1.8, 0); }
+function getCurrentWeaponKey() { return inventory[activeSlot] ? inventory[activeSlot].key : 'deagle'; }
+
+// 2. LÓGICA DAS MIRAS DINÂMICAS E SCOPE
+function updateCrosshairAndScope() {
+    const curKey = getCurrentWeaponKey();
+    
+    // Se a arma for AWP e estiver mirando
+    if (curKey === 'awp' && isAiming) {
+        crosshairElem.style.display = 'none';
+        scopeOverlay.style.display = 'block';
+        if (currentWeaponModel) currentWeaponModel.visible = false; // Esconde a arma
+        camera.fov = 20; // Zoom Extremo
+    } 
+    // Se a arma for AWP mas NÃO estiver mirando (No Scope)
+    else if (curKey === 'awp' && !isAiming) {
+        crosshairElem.style.display = 'none'; // AWP não tem mira na tela normal
+        scopeOverlay.style.display = 'none';
+        if (currentWeaponModel) currentWeaponModel.visible = true;
+        camera.fov = 78;
+    } 
+    // Outras armas (AK, M4, Pistola)
+    else {
+        scopeOverlay.style.display = 'none';
+        crosshairElem.style.display = 'block';
+        if (currentWeaponModel) currentWeaponModel.visible = true;
+        
+        // Define se é mira pequena (pistolas/smg) ou grande (rifles)
+        if (curKey === 'deagle' || curKey === 'p90') {
+            crosshairElem.className = 'crosshair-small';
+        } else {
+            crosshairElem.className = 'crosshair-standard';
+        }
+        
+        camera.fov = (isAiming && itemsConfig[curKey].zoomFov) ? itemsConfig[curKey].zoomFov : 78;
+    }
+    
+    camera.updateProjectionMatrix();
+}
+
+// 3. TROCA DE MODELO 3D NA MÃO
+function build3DWeapon() {
+    if (!gunGroup) return;
+    
+    // Remove arma antiga
+    while(gunGroup.children.length > 0) gunGroup.remove(gunGroup.children[0]);
+    currentWeaponModel = null;
+    
+    const curKey = getCurrentWeaponKey();
+
+    if (activeSlot === 'grenade') {
+        const nade = new THREE.Mesh(new THREE.SphereGeometry(0.08), new THREE.MeshStandardMaterial({color: 0x2e3d29}));
+        nade.position.set(0.2, -0.2, -0.3);
+        gunGroup.add(nade);
+        currentWeaponModel = nade;
+    } else if (loadedWeapons[curKey]) {
+        // Clona o modelo carregado para colocar na câmera
+        const wpnClone = loadedWeapons[curKey].clone();
+        gunGroup.add(wpnClone);
+        currentWeaponModel = wpnClone;
+    } else {
+        // Fallback caso o cara não tenha baixado os arquivos .glb
+        const placeholder = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.5), new THREE.MeshBasicMaterial({color: 0x555555}));
+        placeholder.position.set(0.2, -0.2, -0.3);
+        gunGroup.add(placeholder);
+        currentWeaponModel = placeholder;
+    }
+
+    updateCrosshairAndScope();
 }
 
 function updateHUD() {
-    const curWeaponKey = getCurrentWeaponKey();
-    const curWeaponData = itemsConfig[curWeaponKey] || itemsConfig.deagle;
-    
+    const curKey = getCurrentWeaponKey();
+    const curData = itemsConfig[curKey] || itemsConfig.deagle;
     document.getElementById('hp').innerText = Math.max(0, Math.round(hp));
     document.getElementById('money-display').innerText = `$${playerMoney}`;
     
     if (activeSlot === 'grenade') {
-        document.getElementById('ammo').innerText = inventory.grenade ? inventory.grenade.ammo : 0;
-        document.getElementById('reserve-ammo').innerText = '/ 1';
+        document.getElementById('ammo').innerText = inventory.grenade ? 1 : 0;
+        document.getElementById('reserve-ammo').innerText = '';
     } else {
-        document.getElementById('ammo').innerText = curWeaponData.maxAmmo ? inventory[activeSlot].ammo : '-';
-        document.getElementById('reserve-ammo').innerText = curWeaponData.maxAmmo ? `/ ${inventory[activeSlot].reserveAmmo}` : '';
+        document.getElementById('ammo').innerText = curData.maxAmmo ? inventory[activeSlot].ammo : '-';
+        document.getElementById('reserve-ammo').innerText = curData.maxAmmo ? `/ ${inventory[activeSlot].reserveAmmo}` : '';
     }
-
-    document.getElementById('weapon-display').innerText = curWeaponData.name;
-    
+    document.getElementById('weapon-display').innerText = curData.name;
     document.getElementById('armor-bar').style.width = `${armorDurability}%`;
     document.getElementById('helmet-bar').style.width = `${helmetDurability}%`;
-}
-
-function updateScoreboard() {
-    const wrapper = document.getElementById('score-wrapper');
-    wrapper.innerHTML = '';
     
-    if (gameMode === 'bot') {
-        const myScore = playerScores['player'] || 0;
-        const enemyScore = playerScores['bots'] || 0;
-        wrapper.innerHTML = `<div class="score-card"><span class="p-name">${playerNick.toUpperCase()}:</span><span class="p-score">${myScore}</span></div>`;
-        wrapper.innerHTML += ` &nbsp;|&nbsp; <div class="score-card"><span class="p-name">BOTS:</span><span class="p-score">${enemyScore}</span></div>`;
-    }
-}
-
-function createNetworkPlayer(id, nick) {
-    if (networkPlayers[id]) scene.remove(networkPlayers[id]);
-    
-    const group = new THREE.Group();
-    const matUniform = new THREE.MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.5 });
-    const matVest = new THREE.MeshStandardMaterial({ color: 0x1a252f, roughness: 0.3 });
-    const matSkin = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.7 });
-    const matHelmet = new THREE.MeshStandardMaterial({ color: 0x34495e, metalness: 0.4, roughness: 0.3 });
-    const matGun = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.2 });
-
-    const legGeo = new THREE.BoxGeometry(0.22, 0.9, 0.25);
-    const legLeft = new THREE.Mesh(legGeo, matUniform); legLeft.position.set(-0.13, 0.45, 0);
-    const legRight = new THREE.Mesh(legGeo, matUniform); legRight.position.set(0.13, 0.45, 0);
-
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.3), matUniform); torso.position.set(0, 1.25, 0);
-    const vest = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.5, 0.32), matVest); vest.position.set(0, 1.3, 0);
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.32, 0.28), matSkin); head.position.set(0, 1.82, 0);
-    const helmet = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.18, 0.32), matHelmet); helmet.position.set(0, 1.93, 0);
-
-    const armGeo = new THREE.BoxGeometry(0.18, 0.7, 0.18);
-    const armLeft = new THREE.Mesh(armGeo, matUniform); armLeft.position.set(-0.36, 1.25, 0);
-    const armRight = new THREE.Mesh(armGeo, matUniform); armRight.position.set(0.36, 1.25, 0);
-
-    const rifle = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 0.8), matGun);
-    rifle.position.set(0.2, 1.25, -0.35); rifle.rotation.x = 0.1;
-
-    const bFlash = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0 }));
-    bFlash.position.set(0.2, 1.25, -0.8);
-    group.add(legLeft, legRight, torso, vest, head, helmet, armLeft, armRight, rifle, bFlash);
-    
-    const hitboxBody = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.4, 0.4, 1.9, 12),
-        new THREE.MeshBasicMaterial({ visible: false })
-    );
-    hitboxBody.position.y = 0.95;
-    group.add(hitboxBody);
-
-    scene.add(group);
-    wallMeshes.push(hitboxBody);
-    networkPlayers[id] = group;
-}
-
-function spawnBots(count = 5) {
-    bots.forEach(b => { if (b.mesh) scene.remove(b.mesh); });
-    bots = [];
-
-    for (let i = 0; i < count; i++) {
-        const botId = 'bot_' + i;
-        createNetworkPlayer(botId, "Bot " + (i + 1));
-        let bMesh = networkPlayers[botId];
-        
-        let bSpawn = getSafeSpawn(camera ? camera.position : null);
-        bMesh.position.set(bSpawn.x, 0, bSpawn.z);
-        
-        bots.push({
-            id: botId,
-            mesh: bMesh,
-            hp: 100,
-            lastShot: 0,
-            strafeDir: (i % 2 === 0 ? 1 : -1),
-            pos: bMesh.position
-        });
-    }
-}
-
-function build3DWeapon() {
-    if (!gunGroup) return;
-    while(gunGroup.children.length > 0) gunGroup.remove(gunGroup.children[0]);
-    
-    const mDark = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.8, roughness: 0.2 });
-    const mWood = new THREE.MeshStandardMaterial({ color: 0x5c3317, roughness: 0.7 });
-    const mGreen = new THREE.MeshStandardMaterial({ color: 0x2e3d29, roughness: 0.6 });
-    let barrelOffsetZ = -0.45;
-    const curKey = getCurrentWeaponKey();
-
-    if (activeSlot === 'grenade') {
-        const nadeMesh = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), mGreen);
-        gunGroup.add(nadeMesh);
-        barrelOffsetZ = -0.1;
-    } else if (curKey === 'ak47') {
-        const body = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.09, 0.5), mDark);
-        const stock = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.25), mWood); stock.position.set(0, -0.02, 0.35);
-        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.35), mDark); barrel.rotation.x = Math.PI/2; barrel.position.set(0, 0.01, -0.42);
-        gunGroup.add(body, stock, barrel);
-        barrelOffsetZ = -0.6;
-    } else if (curKey === 'm4a4') {
-        const body = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.09, 0.48), mDark);
-        const stock = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.07, 0.2), mDark); stock.position.set(0, -0.01, 0.32);
-        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.35), mDark); barrel.rotation.x = Math.PI/2; barrel.position.set(0, 0.01, -0.4);
-        gunGroup.add(body, stock, barrel);
-        barrelOffsetZ = -0.58;
-    } else if (curKey === 'awp') {
-        const body = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 0.7), mGreen);
-        const scope = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.28), mDark); scope.rotation.x = Math.PI/2; scope.position.set(0, 0.08, -0.05);
-        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.6), mDark); barrel.rotation.x = Math.PI/2; barrel.position.set(0, 0.02, -0.65);
-        barrelOffsetZ = -0.95;
-        gunGroup.add(body, scope, barrel);
-    } else if (curKey === 'p90') {
-        const body = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.4), mDark);
-        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.2), mDark); barrel.rotation.x = Math.PI/2; barrel.position.set(0, 0.01, -0.3);
-        barrelOffsetZ = -0.4;
-        gunGroup.add(body, barrel);
-    } else { 
-        const body = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.3), mDark);
-        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.18), mDark); barrel.rotation.x = Math.PI/2; barrel.position.set(0, 0.02, -0.22);
-        barrelOffsetZ = -0.31;
-        gunGroup.add(body, barrel);
-    }
-
-    const skinMat = new THREE.MeshStandardMaterial({ color: 0xd4a373, roughness: 0.6 });
-    const sleeveMat = new THREE.MeshStandardMaterial({ color: 0x1f2421, roughness: 0.8 });
-    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, 0.25), sleeveMat);
-    arm.rotation.x = Math.PI / 2.2; arm.position.set(-0.06, -0.06, 0.1);
-    const hand = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.04), skinMat);
-    hand.position.set(-0.03, -0.02, -0.05);
-    gunGroup.add(arm, hand);
-
-    muzzleFlashMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), new THREE.MeshBasicMaterial({ color: 0xffcc33, transparent: true, opacity: 0, depthWrite: false }));
-    muzzleFlashMesh.position.set(0, 0.01, barrelOffsetZ);
-    muzzleLight = new THREE.PointLight(0xffaa00, 0, 10);
-    muzzleLight.position.set(0, 0, barrelOffsetZ);
-    gunGroup.add(muzzleFlashMesh, muzzleLight);
-    
-    gunGroup.position.set(0.18, -0.22, -0.3);
+    updateCrosshairAndScope(); // Atualiza a mira
 }
 
 function initGameEngine() {
+    preloadWeapons(); // Inicia o download das armas
     scene = new THREE.Scene();
-    usedSpawns = [];
-    
-    let bgColor = 0x87ceeb;
-    if(selectedMap === 'mirage') bgColor = 0x6ca3d8;
-    if(selectedMap === 'inferno') bgColor = 0x415366;
-    if(selectedMap === 'nuke') bgColor = 0x333d48;
-    
-    scene.background = new THREE.Color(bgColor);
-    scene.fog = new THREE.FogExp2(bgColor, 0.002);
+    scene.background = new THREE.Color(0x87ceeb);
+    scene.fog = new THREE.FogExp2(0x87ceeb, 0.002);
 
     camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const startSpawn = getSafeSpawn(null);
-    camera.position.copy(startSpawn); 
+    camera.position.set(0, 1.8, 0);
 
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.4);
-    scene.add(hemiLight);
-    
-    const dirLight = new THREE.DirectionalLight(0xfff0dd, 2.5); 
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2.5); 
     dirLight.position.set(120, 200, 90); 
-    dirLight.castShadow = true;
-    dirLight.shadow.camera.top = 100;
-    dirLight.shadow.camera.bottom = -100;
-    dirLight.shadow.camera.left = -100;
-    dirLight.shadow.camera.right = 100;
-    dirLight.shadow.mapSize.width = 4096;
-    dirLight.shadow.mapSize.height = 4096;
-    scene.add(dirLight);
+    scene.add(hemiLight, dirLight);
 
-    buildMapGeometries(scene, selectedMap);
-
-    if (gameMode === 'bot') spawnBots(5);
+    buildMapGeometries(scene); // Carrega map.glb
 
     gunGroup = new THREE.Group();
     camera.add(gunGroup); 
     scene.add(camera);
-    build3DWeapon();
+
+    setTimeout(build3DWeapon, 1000); // Dá 1 seg para os GLB carregarem
 
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
-
     container.innerHTML = '';
     container.appendChild(renderer.domElement);
 
     const renderScene = new RenderPass(scene, camera);
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.3, 0.4, 0.85);
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.25, 0.4, 0.85);
     composer = new EffectComposer(renderer);
     composer.addPass(renderScene);
     composer.addPass(bloomPass);
@@ -299,132 +193,103 @@ function initGameEngine() {
     if (gameMode === 'online') initMultiplayer();
 }
 
+// 4. FIX DO MULTIPLAYER (FORÇANDO HTTPS E PORTA 443 PARA GITHUB PAGES)
 function initMultiplayer() {
-    const roomId = document.getElementById('room-id').value || "sala-1";
+    const roomId = document.getElementById('room-id').value || "dust2-server";
+    const myId = playerNick + "_" + Math.floor(Math.random() * 10000);
     
-    peer = new Peer(playerNick + "_" + Math.floor(Math.random() * 1000)); 
+    // Configuração robusta para GitHub Pages
+    peer = new Peer(myId, {
+        host: '0.peerjs.com',
+        port: 443,
+        secure: true, // Obrigatório em sites HTTPS
+        debug: 1
+    });
 
     peer.on('open', (id) => {
-        showKillFeed("Conectado ao servidor P2P!");
+        document.getElementById('kill-feed').innerText = "Buscando servidor...";
+        document.getElementById('kill-feed').style.display = 'block';
+        
+        // Tenta conectar ao host da sala. Se falhar, eu viro o Host.
         conn = peer.connect("host_" + roomId);
         
         conn.on('open', () => {
+            document.getElementById('kill-feed').innerText = "Conectado ao Host!";
             conn.send({ type: 'join', nick: playerNick });
+        });
+
+        conn.on('error', () => {
+            // Se o host não existe, eu crio a sala (viro o host)
+            isHost = true;
+            peer.destroy();
+            peer = new Peer("host_" + roomId, { host: '0.peerjs.com', port: 443, secure: true });
+            peer.on('open', () => { document.getElementById('kill-feed').innerText = "Servidor Criado. Aguardando jogadores..."; });
+            peer.on('connection', handleIncomingConnection);
         });
     });
 
-    peer.on('connection', (connection) => {
-        peers[connection.peer] = connection;
-        createNetworkPlayer(connection.peer, "Inimigo"); 
-        
-        connection.on('data', (data) => {
-            if (data.type === 'pos') {
-                const netPlayer = networkPlayers[connection.peer];
-                if (netPlayer) {
-                    netPlayer.position.lerp(new THREE.Vector3(data.x, data.y, data.z), 0.3);
-                    netPlayer.rotation.y = data.rot;
-                }
+    peer.on('connection', handleIncomingConnection);
+}
+
+function handleIncomingConnection(connection) {
+    peers[connection.peer] = connection;
+    createNetworkPlayer(connection.peer, "Inimigo"); 
+    
+    connection.on('data', (data) => {
+        if (data.type === 'pos') {
+            const netPlayer = networkPlayers[connection.peer];
+            if (netPlayer) {
+                netPlayer.position.lerp(new THREE.Vector3(data.x, data.y, data.z), 0.3);
+                netPlayer.rotation.y = data.rot;
             }
-            if (data.type === 'shoot') {
-                playShootSound(); 
-            }
-        });
+        }
+        if (data.type === 'shoot') playShootSound();
     });
 }
 
 function sendNetworkData() {
     if (!peer || gameMode !== 'online') return;
-    const posData = {
-        type: 'pos',
-        x: camera.position.x,
-        y: camera.position.y - 0.8,
-        z: camera.position.z,
-        rot: cameraEuler.y
-    };
+    const posData = { type: 'pos', x: camera.position.x, y: camera.position.y - 0.8, z: camera.position.z, rot: cameraEuler.y };
+    Object.values(peers).forEach(c => { if (c.open) c.send(posData); });
+}
+
+function createNetworkPlayer(id, nick) {
+    const g = new THREE.Group();
+    // Corpo simples para inimigo (Substitua por GLTF no futuro se quiser)
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.5, 0.4), new THREE.MeshStandardMaterial({ color: 0xff0000 }));
+    torso.position.y = 0.75;
+    g.add(torso);
+    scene.add(g);
+    networkPlayers[id] = g;
+}
+
+function shoot() {
+    if(isDead || buyMenuOpen) return;
+    if (activeSlot === 'grenade') { inventory.grenade = null; activeSlot = 'secondary'; build3DWeapon(); return; }
     
-    Object.values(peers).forEach(connection => {
-        if (connection.open) connection.send(posData);
-    });
-}
+    if (!inventory[activeSlot] || inventory[activeSlot].ammo <= 0) return;
+    const now = performance.now(), curKey = getCurrentWeaponKey(), cfg = itemsConfig[curKey];
+    if (now - lastShotTime < cfg.fireRate) return;
 
-function setupBuyMenuEvents() {
-    const weapons = ['deagle', 'p90', 'ak47', 'm4a4', 'awp'];
-    weapons.forEach(wKey => {
-        const btn = document.getElementById(`buy-${wKey}`);
-        if (btn) btn.onclick = () => buyWeapon(wKey);
-    });
+    lastShotTime = now; inventory[activeSlot].ammo--; updateHUD();
+    playShootSound();
 
-    const buyArmorBtn = document.getElementById('buy-armor');
-    if (buyArmorBtn) buyArmorBtn.onclick = () => buyGear('armor');
-
-    const buyHelmetBtn = document.getElementById('buy-helmet');
-    if (buyHelmetBtn) buyHelmetBtn.onclick = () => buyGear('helmet');
-
-    const buyGrenadeBtn = document.getElementById('buy-grenade');
-    if (buyGrenadeBtn) buyGrenadeBtn.onclick = () => buyGear('grenade');
-}
-
-function buyWeapon(key) {
-    const item = itemsConfig[key];
-    if (!item) return;
-    if (playerMoney >= item.price) {
-        playerMoney -= item.price;
-        inventory[item.slot] = { key: key, ammo: item.maxAmmo, reserveAmmo: item.totalAmmo };
-        activeSlot = item.slot;
-        build3DWeapon();
-        updateHUD();
-        document.getElementById('buy-money-display').innerText = `$${playerMoney}`;
-        showKillFeed(`Equipado: ${item.name}`);
-    } else {
-        showKillFeed("Saldo insuficiente!");
+    // Expande a mira ao atirar (Recoil visual)
+    if(curKey !== 'awp') {
+        crosshairElem.style.transform = "translate(-50%, -50%) scale(1.5)";
+        setTimeout(() => crosshairElem.style.transform = "translate(-50%, -50%) scale(1)", 150);
     }
-}
 
-function buyGear(type) {
-    const item = itemsConfig[type];
-    if (!item) return;
-    if (playerMoney >= item.price) {
-        if (type === 'armor') {
-            armorDurability = 100; playerMoney -= item.price;
-        } else if (type === 'helmet') {
-            helmetDurability = 100; playerMoney -= item.price;
-        } else if (type === 'grenade' && !inventory.grenade) {
-            inventory.grenade = { key: 'grenade', ammo: 1 };
-            playerMoney -= item.price;
-        }
-        updateHUD();
-        document.getElementById('buy-money-display').innerText = `$${playerMoney}`;
-    }
+    if (gameMode === 'online') { Object.values(peers).forEach(c => { if (c.open) c.send({ type: 'shoot' }); }); }
+
+    cameraEuler.x += cfg.recoil || 0.015;
+    camera.quaternion.setFromEuler(cameraEuler);
 }
 
 function setupEvents() {
-    window.addEventListener('resize', () => {
-        if (!camera || !renderer) return;
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        if (composer) composer.setSize(window.innerWidth, window.innerHeight);
-    });
-
-    window.addEventListener('wheel', (e) => {
-        if (isDead || buyMenuOpen) return;
-        const availableSlots = slotOrder.filter(s => inventory[s] !== null);
-        if (availableSlots.length <= 1) return;
-        
-        let currentIndex = availableSlots.indexOf(activeSlot);
-        if (e.deltaY > 0) {
-            currentIndex = (currentIndex + 1) % availableSlots.length;
-        } else {
-            currentIndex = (currentIndex - 1 + availableSlots.length) % availableSlots.length;
-        }
-        activeSlot = availableSlots[currentIndex];
-        build3DWeapon();
-        updateHUD();
-    });
-
     document.addEventListener('mousemove', (e) => {
         if (!pointerLocked || isDead || buyMenuOpen) return;
-        const sens = isAiming ? 0.0007 : 0.0016;
+        const sens = isAiming ? 0.0004 : 0.0016; // Sensibilidade cai muito ao mirar
         cameraEuler.y -= e.movementX * sens;
         cameraEuler.x -= e.movementY * sens;
         cameraEuler.x = Math.max(-Math.PI/2.1, Math.min(Math.PI/2.1, cameraEuler.x));
@@ -433,40 +298,25 @@ function setupEvents() {
 
     document.addEventListener('keydown', (e) => {
         if (isDead) return;
-        if (e.code === 'KeyB') toggleBuyMenu(!buyMenuOpen);
+        if (e.code === 'KeyB') { buyMenuOpen = !buyMenuOpen; buyMenu.classList.toggle('hidden'); if(buyMenuOpen) document.exitPointerLock(); else document.body.requestPointerLock(); }
         if (!pointerLocked || buyMenuOpen) return;
-
         if (e.code === 'ShiftLeft') isRunning = true;
 
         switch(e.code) {
-            case 'KeyW': moveF = true; break;
-            case 'KeyS': moveB = true; break;
-            case 'KeyA': moveL = true; break;
-            case 'KeyD': moveR = true; break;
-            case 'Digit1':
-                if (inventory.primary) { activeSlot = 'primary'; build3DWeapon(); updateHUD(); }
-                break;
-            case 'Digit2':
-                if (inventory.secondary) { activeSlot = 'secondary'; build3DWeapon(); updateHUD(); }
-                break;
-            case 'Digit4':
-            case 'KeyG':
-                if (inventory.grenade) { activeSlot = 'grenade'; build3DWeapon(); updateHUD(); }
-                break;
-            case 'ControlLeft': isCrouching = true; currentHeight = 1.0; break;
+            case 'KeyW': moveF = true; break; case 'KeyS': moveB = true; break;
+            case 'KeyA': moveL = true; break; case 'KeyD': moveR = true; break;
+            case 'Digit1': if (inventory.primary) { activeSlot = 'primary'; build3DWeapon(); updateHUD(); } break;
+            case 'Digit2': if (inventory.secondary) { activeSlot = 'secondary'; build3DWeapon(); updateHUD(); } break;
             case 'Space': if(canJump) { velocity.y = 8.5; canJump = false; } break;
-            case 'KeyR': reload(); break;
+            case 'KeyR': inventory[activeSlot].ammo = itemsConfig[getCurrentWeaponKey()].maxAmmo; updateHUD(); break;
         }
     });
 
     document.addEventListener('keyup', (e) => {
         switch(e.code) {
-            case 'KeyW': moveF = false; break;
-            case 'KeyS': moveB = false; break;
-            case 'KeyA': moveL = false; break;
-            case 'KeyD': moveR = false; break;
+            case 'KeyW': moveF = false; break; case 'KeyS': moveB = false; break;
+            case 'KeyA': moveL = false; break; case 'KeyD': moveR = false; break;
             case 'ShiftLeft': isRunning = false; break;
-            case 'ControlLeft': isCrouching = false; currentHeight = 1.8; break;
         }
     });
 
@@ -474,282 +324,32 @@ function setupEvents() {
         if (buyMenuOpen || isDead) return;
         if (!pointerLocked) { document.body.requestPointerLock(); return; }
         if (e.button === 0) { isMouseDown = true; shoot(); }
-        if (e.button === 2) setAim(true);
+        if (e.button === 2) { isAiming = true; updateCrosshairAndScope(); } // Botão Direito = Mira
     });
     
     document.addEventListener('mouseup', (e) => { 
         if (e.button === 0) isMouseDown = false;
-        if (e.button === 2) setAim(false); 
+        if (e.button === 2) { isAiming = false; updateCrosshairAndScope(); } // Solta Botão Direito = Tira Mira
     });
 }
 
-function spawnImpactParticle(position, normal) {
-    const mat = new THREE.MeshBasicMaterial({ color: 0x222222 });
-    const p = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.02), mat);
-    p.position.copy(position).addScaledVector(normal, 0.01);
-    p.lookAt(position.clone().add(normal));
-    scene.add(p);
-    setTimeout(() => scene.remove(p), 4000);
-}
-
-function spawnTracer(startPoint, endPoint) {
-    const geom = new THREE.BufferGeometry().setFromPoints([startPoint, endPoint]);
-    const mat = new THREE.LineBasicMaterial({ color: 0xffcc44, transparent: true, opacity: 0.8 });
-    const line = new THREE.Line(geom, mat);
-    scene.add(line);
-    tracers.push({ mesh: line, life: 0.1 });
-}
-
-function throwGrenade() {
-    if (!inventory.grenade || inventory.grenade.ammo <= 0) return;
-    inventory.grenade.ammo = 0;
-    inventory.grenade = null;
-
-    const nadeMesh = new THREE.Mesh(
-        new THREE.SphereGeometry(0.12, 12, 12),
-        new THREE.MeshStandardMaterial({ color: 0x3a4a28, roughness: 0.5 })
-    );
-    nadeMesh.position.copy(camera.position);
-
-    const dir = new THREE.Vector3();
-    camera.getWorldDirection(dir);
-    
-    const nadeVel = dir.clone().multiplyScalar(22).add(new THREE.Vector3(0, 4, 0));
-    activeGrenades.push({ mesh: nadeMesh, vel: nadeVel, timer: 2.2 });
-    scene.add(nadeMesh);
-
-    activeSlot = inventory.primary ? 'primary' : 'secondary';
-    build3DWeapon();
-    updateHUD();
-}
-
-function shoot() {
-    if(isDead || buyMenuOpen) return;
-
-    if (activeSlot === 'grenade') {
-        throwGrenade();
-        return;
-    }
-
-    if (!inventory[activeSlot] || inventory[activeSlot].ammo <= 0) return;
-    const now = performance.now(), curKey = getCurrentWeaponKey(), cfg = itemsConfig[curKey];
-    if (now - lastShotTime < cfg.fireRate) return;
-
-    lastShotTime = now; inventory[activeSlot].ammo--; updateHUD();
-    playShootSound();
-
-    if (gameMode === 'online') {
-        Object.values(peers).forEach(c => {
-            if (c.open) c.send({ type: 'shoot' });
-        });
-    }
-
-    const recoilVal = cfg.recoil || 0.015;
-    cameraEuler.x += recoilVal;
-    cameraEuler.y += (Math.random() - 0.5) * recoilVal * 0.8;
-    camera.quaternion.setFromEuler(cameraEuler);
-
-    gunGroup.position.z += 0.06; setTimeout(() => gunGroup.position.z -= 0.06, 50);
-    muzzleFlashMesh.material.opacity = 0.9; muzzleLight.intensity = 2.5;
-    setTimeout(() => { muzzleFlashMesh.material.opacity = 0; muzzleLight.intensity = 0; }, 40);
-
-    const ray = new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2(0,0), camera);
-    const hits = ray.intersectObjects(wallMeshes, true);
-
-    const muzzleWorldPos = new THREE.Vector3();
-    muzzleFlashMesh.getWorldPosition(muzzleWorldPos);
-
-    if (hits.length > 0) {
-        const hit = hits[0];
-        spawnTracer(muzzleWorldPos, hit.point);
-        spawnImpactParticle(hit.point, hit.face.normal);
-
-        if (gameMode === 'bot') {
-            for (let bot of bots) {
-                if (hit.object.parent === bot.mesh || hit.object === bot.mesh) {
-                    bot.hp -= cfg.damage;
-                    if (bot.hp <= 0) {
-                        playerScores['player'] = (playerScores['player'] || 0) + 1;
-                        hp = Math.min(100, hp + 25);
-                        playerMoney += 300; 
-                        updateHUD(); 
-                        updateScoreboard();
-                        showKillFeed("+ $300 | Eliminação Tática");
-                        
-                        bot.hp = 100;
-                        let newPos = getSafeSpawn(camera.position);
-                        bot.pos.set(newPos.x, 0.9, newPos.z); 
-                        bot.mesh.position.copy(bot.pos);
-                    }
-                    break;
-                }
+function setupBuyMenuEvents() {
+    ['deagle', 'p90', 'ak47', 'm4a4', 'awp'].forEach(w => {
+        document.getElementById(`buy-${w}`).onclick = () => {
+            const item = itemsConfig[w];
+            if (playerMoney >= item.price) {
+                playerMoney -= item.price;
+                inventory[item.slot] = { key: w, ammo: item.maxAmmo, reserveAmmo: item.totalAmmo };
+                activeSlot = item.slot;
+                build3DWeapon(); updateHUD();
             }
-        }
-    } else {
-        const farPoint = camera.position.clone().add(ray.ray.direction.clone().multiplyScalar(100));
-        spawnTracer(muzzleWorldPos, farPoint);
-    }
-}
-
-export function takeDamage(dmg) {
-    if (isDead) return;
-
-    let finalDmg = dmg;
-    if (helmetDurability > 0) {
-        finalDmg *= 0.45;
-        helmetDurability = Math.max(0, helmetDurability - 20);
-    } else if (armorDurability > 0) {
-        finalDmg *= 0.65;
-        armorDurability = Math.max(0, armorDurability - 15);
-    }
-
-    hp -= finalDmg;
-    updateHUD();
-
-    const overlay = document.getElementById('damage-overlay');
-    overlay.style.boxShadow = 'inset 0 0 120px rgba(255,0,0,0.8)';
-    setTimeout(() => overlay.style.boxShadow = 'inset 0 0 0px rgba(255,0,0,0)', 150);
-
-    if (hp <= 0) {
-        hp = 0; isDead = true; isMouseDown = false;
-        if (gameMode === 'bot') {
-            playerScores['bots'] = (playerScores['bots'] || 0) + 1;
-            updateScoreboard();
-        }
-        
-        document.getElementById('death-screen').style.display = 'block';
-        document.getElementById('round-message').innerText = "VOCÊ FOI ELIMINADO";
-        document.getElementById('round-message').style.display = 'block';
-        document.exitPointerLock();
-
-        setTimeout(restartRound, 3000);
-    }
-}
-
-function restartRound() {
-    hp = 100; isDead = false;
-    playerMoney = 5000; 
-    
-    inventory = {
-        secondary: { key: 'deagle', ammo: 7, reserveAmmo: 35 },
-        primary: null,
-        grenade: null
-    };
-    activeSlot = 'secondary';
-    armorDurability = 0; helmetDurability = 0;
-    
-    cameraEuler.set(0, 0, 0, 'YXZ');
-    camera.quaternion.setFromEuler(cameraEuler);
-
-    document.getElementById('death-screen').style.display = 'none';
-    document.getElementById('round-message').style.display = 'none';
-    updateHUD();
-    build3DWeapon();
-    
-    if (camera) camera.position.copy(getSafeSpawn(null)); 
-    if (gameMode === 'bot') spawnBots(5);
-
-    pauseScreen.style.display = 'flex';
-    pauseScreen.querySelector('h1').innerText = "NOVA RODADA INICIADA";
-    pauseScreen.querySelector('p').innerText = "Clique para entrar em combate";
-}
-
-function reload() {
-    if (activeSlot === 'grenade' || !inventory[activeSlot]) return;
-    const curInv = inventory[activeSlot];
-    const cfg = itemsConfig[getCurrentWeaponKey()];
-    if (curInv.ammo === cfg.maxAmmo) return;
-    playReloadSound();
-    document.getElementById('ammo').innerText = "--";
-    setTimeout(() => {
-        curInv.ammo = cfg.maxAmmo;
-        updateHUD();
-    }, 1400);
-}
-
-function setAim(active) {
-    if(isDead || buyMenuOpen) return;
-    isAiming = active;
-    const cfg = itemsConfig[getCurrentWeaponKey()];
-    if (cfg && cfg.zoomFov) {
-        camera.fov = active ? cfg.zoomFov : 78;
-        camera.updateProjectionMatrix();
-    }
-}
-
-function toggleBuyMenu(show) {
-    buyMenuOpen = show;
-    if(show) {
-        document.exitPointerLock();
-        document.getElementById('buy-money-display').innerText = `$${playerMoney}`;
-        buyMenu.classList.remove('hidden');
-    } else {
-        buyMenu.classList.add('hidden');
-        if(!isDead) document.body.requestPointerLock();
-    }
-}
-
-function showKillFeed(txt) {
-    const feed = document.getElementById('kill-feed');
-    feed.innerText = txt; feed.style.display = 'block';
-    setTimeout(() => feed.style.display='none', 2200);
+        };
+    });
 }
 
 function animate() {
     requestAnimationFrame(animate);
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
-
-    if (isDead) {
-        if (camera.position.y > 0.4) camera.position.y -= delta * 3.0;
-        cameraEuler.z = THREE.MathUtils.lerp(cameraEuler.z, Math.PI / 6, delta * 3);
-        camera.quaternion.setFromEuler(cameraEuler);
-    }
-
-    for (let i = tracers.length - 1; i >= 0; i--) {
-        tracers[i].life -= delta;
-        if (tracers[i].life <= 0) {
-            scene.remove(tracers[i].mesh);
-            tracers.splice(i, 1);
-        }
-    }
-
-    for (let i = activeGrenades.length - 1; i >= 0; i--) {
-        const g = activeGrenades[i];
-        g.timer -= delta;
-        g.vel.y -= 9.8 * 2.0 * delta;
-        g.mesh.position.addScaledVector(g.vel, delta);
-
-        if (g.mesh.position.y <= 0.15) {
-            g.mesh.position.y = 0.15;
-            g.vel.multiplyScalar(0.4);
-        }
-
-        if (g.timer <= 0) {
-            playExplosionSound();
-            scene.remove(g.mesh);
-
-            const gPos = g.mesh.position;
-            if (camera.position.distanceTo(gPos) < 14) {
-                const dist = camera.position.distanceTo(gPos);
-                takeDamage(Math.round(95 * (1 - dist / 14)));
-            }
-
-            for (let bot of bots) {
-                const bDist = bot.mesh.position.distanceTo(gPos);
-                if (bDist < 14) {
-                    bot.hp -= Math.round(95 * (1 - bDist / 14));
-                    if (bot.hp <= 0) {
-                        playerScores['player'] = (playerScores['player'] || 0) + 1;
-                        updateScoreboard();
-                        let newPos = getSafeSpawn(camera.position);
-                        bot.pos.set(newPos.x, 0.9, newPos.z); bot.mesh.position.copy(bot.pos);
-                    }
-                }
-            }
-
-            activeGrenades.splice(i, 1);
-        }
-    }
 
     if (pointerLocked && !isDead && !buyMenuOpen) {
         if (isMouseDown && itemsConfig[getCurrentWeaponKey()].auto) shoot();
@@ -757,112 +357,55 @@ function animate() {
         const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir); camDir.y = 0; camDir.normalize();
         const camRight = new THREE.Vector3().crossVectors(camDir, camera.up).normalize();
 
-        velocity.x -= velocity.x * 10.0 * delta;
-        velocity.z -= velocity.z * 10.0 * delta;
-        velocity.y -= 9.8 * 4.2 * delta;
+        velocity.x -= velocity.x * 10.0 * delta; velocity.z -= velocity.z * 10.0 * delta; velocity.y -= 9.8 * 4.2 * delta;
 
-        let speed = isCrouching ? 22 : (isRunning ? 115 : 68);
+        let speed = isRunning ? 115 : 68;
         if (moveF) velocity.addScaledVector(camDir, speed * delta);
         if (moveB) velocity.addScaledVector(camDir, -speed * delta);
         if (moveL) velocity.addScaledVector(camRight, -speed * delta);
         if (moveR) velocity.addScaledVector(camRight, speed * delta);
 
         const oldPos = camera.position.clone();
-        camera.position.x += velocity.x * delta;
-        camera.position.z += velocity.z * delta;
-
-        const feetRay = new THREE.Raycaster(camera.position, new THREE.Vector3(0, -1, 0), 0, currentHeight + 1.2);
-        const feetHits = feetRay.intersectObjects(mapWallMeshes, true);
-
-        if (feetHits.length > 0) {
-            let hitGroundY = feetHits[0].point.y + currentHeight;
-            let diffY = hitGroundY - camera.position.y;
-            if (diffY > -1.2 && diffY < 2.0) {
-                camera.position.y = hitGroundY;
-                velocity.y = 0;
-                canJump = true;
-            }
-        } else {
-            camera.position.y += velocity.y * delta;
-        }
+        camera.position.x += velocity.x * delta; camera.position.z += velocity.z * delta;
+        
+        // Simples gravidade para andar no chão lido do modelo 3D
+        camera.position.y += velocity.y * delta;
+        if (camera.position.y < currentHeight) { camera.position.y = currentHeight; velocity.y = 0; canJump = true; }
 
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
         for (let box of collidables) {
-            if (box.userData && box.userData.mesh && box.userData.mesh.userData && box.userData.mesh.userData.isRamp) continue;
-            if (playerBox.intersectsBox(box)) {
-                camera.position.x = oldPos.x;
-                camera.position.z = oldPos.z;
-                break;
-            }
-        }
-
-        if (camera.position.y < currentHeight) { camera.position.y = currentHeight; velocity.y = 0; canJump = true; }
-        
-        if (!isDead && !isAiming && (moveF || moveB || moveL || moveR) && canJump) {
-            const bobFrequency = isRunning ? 15 : 10;
-            const bobAmplitude = isRunning ? 0.08 : 0.04;
-            camera.position.y += Math.sin(time * bobFrequency / 1000) * bobAmplitude;
+            if (playerBox.intersectsBox(box)) { camera.position.x = oldPos.x; camera.position.z = oldPos.z; break; }
         }
     }
     
-    if (cameraEuler.x > 0 && !isMouseDown) {
-        cameraEuler.x -= delta * 0.5;
-        cameraEuler.x = Math.max(0, cameraEuler.x);
-        camera.quaternion.setFromEuler(cameraEuler);
-    }
+    if (cameraEuler.x > 0 && !isMouseDown) { cameraEuler.x = Math.max(0, cameraEuler.x - delta * 0.5); camera.quaternion.setFromEuler(cameraEuler); }
 
-    updateBotLogic(gameMode, isDead, bots, camera, delta, time, takeDamage);
-    
-    sendNetworkData(); 
-
+    sendNetworkData();
     prevTime = time;
     if (composer && scene && camera) composer.render(); 
 }
+
+btnStart.addEventListener('click', () => {
+    playerNick = document.getElementById('player-nick').value || "Striker";
+    gameMode = document.querySelector('.mode-btn.active').id === 'mode-bot' ? 'bot' : 'online';
+    document.getElementById('lobby-container').style.display = 'none';
+    initGameEngine();
+    updateHUD(); animate();
+    document.body.requestPointerLock();
+});
 
 document.querySelectorAll('.mode-btn').forEach(btn => {
     btn.onclick = () => {
         document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        if (btn.id === 'mode-bot') {
-            gameMode = 'bot';
-            document.getElementById('net-link-section').style.display = 'none';
-        } else {
-            gameMode = 'online';
-            document.getElementById('net-link-section').style.display = 'block';
-        }
+        document.getElementById('net-link-section').style.display = btn.id === 'mode-online' ? 'block' : 'none';
     };
 });
 
-btnStart.addEventListener('click', () => {
-    playerNick = document.getElementById('player-nick').value || "Striker";
-    selectedMap = document.getElementById('map-select').value;
-    
-    document.getElementById('lobby-container').style.display = 'none';
-    container.style.display = 'block';
-    document.getElementById('scoreboard').style.display = 'flex';
-    document.getElementById('hud-bottom-left').style.display = 'flex';
-    document.getElementById('hud-bottom-right').style.display = 'flex';
-    document.getElementById('buy-hint').style.display = 'block';
-    document.getElementById('crosshair').style.display = 'block';
-    
-    initGameEngine();
-    updateHUD();
-    updateScoreboard();
-    animate();
-    document.body.requestPointerLock();
-});
-
-document.getElementById('btn-resume').addEventListener('click', () => document.body.requestPointerLock());
-document.getElementById('btn-close-buy').addEventListener('click', () => toggleBuyMenu(false));
-
 document.addEventListener('pointerlockchange', () => {
     pointerLocked = !!document.pointerLockElement;
-    if (pointerLocked) { 
-        pauseScreen.style.display = 'none'; 
-        if(buyMenuOpen) toggleBuyMenu(false); 
-    } else { 
-        moveF = moveB = moveL = moveR = false; 
-        isMouseDown = false;
-        if(!buyMenuOpen && !isDead) pauseScreen.style.display = 'flex'; 
-    }
+    if (!pointerLocked && !buyMenuOpen && !isDead) pauseScreen.style.display = 'flex'; 
+    else pauseScreen.style.display = 'none';
 });
+document.getElementById('btn-resume').addEventListener('click', () => document.body.requestPointerLock());
+document.getElementById('btn-close-buy').addEventListener('click', () => { buyMenuOpen = false; buyMenu.classList.add('hidden'); document.body.requestPointerLock(); });
