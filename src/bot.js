@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { wallMeshes, collidables } from './map.js';
 import { playShootSound } from './audio.js';
 
