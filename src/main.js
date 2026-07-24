@@ -109,7 +109,6 @@ function build3DWeapon() {
     // Remove arma antiga
     while(gunGroup.children.length > 0) gunGroup.remove(gunGroup.children[0]);
     currentWeaponModel = null;
-    return;
     
     const curKey = getCurrentWeaponKey();
 
@@ -159,13 +158,7 @@ function initGameEngine() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
     scene.fog = new THREE.FogExp2(0x87ceeb, 0.002);
-const cuboTeste = new THREE.Mesh(
-        new THREE.BoxGeometry(2, 2, 2),
-        new THREE.MeshBasicMaterial({ color: 0xff0000 }) // Vermelho brilhante
-    );
-    cuboTeste.position.set(0, 1.8, -5); // 5 metros na frente da câmera
-    scene.add(cuboTeste);
-    
+
     camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1.8, 0);
 
@@ -186,14 +179,6 @@ const cuboTeste = new THREE.Mesh(
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.innerHTML = '';
-    container.style.display = 'block';
-    container.style.position = 'absolute';
-    container.style.top = '0';
-    container.style.left = '0';
-    container.style.width = '100vw';
-    container.style.height = '100vh';
-    container.style.zIndex = '1';
-    document.getElementById('crosshair').style.zIndex = '100'; // Garante a mira na frente
     container.appendChild(renderer.domElement);
 
     const renderScene = new RenderPass(scene, camera);
@@ -364,19 +349,42 @@ function setupBuyMenuEvents() {
 
 function animate() {
     requestAnimationFrame(animate);
+    const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
 
-    // 1. TRAVA A CÂMERA EM UMA POSIÇÃO EXATA
-    // Se algum cálculo de velocidade estava quebrando a tela, isso resolve na hora.
-    camera.position.set(0, 1.8, 0); 
-    
-    // 2. OBRIGA A CÂMERA A OLHAR PARA O CUBO DE TESTE (Cubo está no Z: -5)
-    camera.lookAt(0, 1.8, -5);
+    if (pointerLocked && !isDead && !buyMenuOpen) {
+        if (isMouseDown && itemsConfig[getCurrentWeaponKey()].auto) shoot();
 
-    // 3. RENDERIZA O JOGO SEM FRESCURA DE POST-PROCESSING
-    if (renderer && scene && camera) {
-        renderer.render(scene, camera); 
+        const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir); camDir.y = 0; camDir.normalize();
+        const camRight = new THREE.Vector3().crossVectors(camDir, camera.up).normalize();
+
+        velocity.x -= velocity.x * 10.0 * delta; velocity.z -= velocity.z * 10.0 * delta; velocity.y -= 9.8 * 4.2 * delta;
+
+        let speed = isRunning ? 115 : 68;
+        if (moveF) velocity.addScaledVector(camDir, speed * delta);
+        if (moveB) velocity.addScaledVector(camDir, -speed * delta);
+        if (moveL) velocity.addScaledVector(camRight, -speed * delta);
+        if (moveR) velocity.addScaledVector(camRight, speed * delta);
+
+        const oldPos = camera.position.clone();
+        camera.position.x += velocity.x * delta; camera.position.z += velocity.z * delta;
+        
+        // Simples gravidade para andar no chão lido do modelo 3D
+        camera.position.y += velocity.y * delta;
+        if (camera.position.y < currentHeight) { camera.position.y = currentHeight; velocity.y = 0; canJump = true; }
+
+        playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
+        for (let box of collidables) {
+            if (playerBox.intersectsBox(box)) { camera.position.x = oldPos.x; camera.position.z = oldPos.z; break; }
+        }
     }
+    
+    if (cameraEuler.x > 0 && !isMouseDown) { cameraEuler.x = Math.max(0, cameraEuler.x - delta * 0.5); camera.quaternion.setFromEuler(cameraEuler); }
+
+    sendNetworkData();
+    prevTime = time;
+    if (composer && scene && camera) composer.render(); 
 }
+
 btnStart.addEventListener('click', () => {
     playerNick = document.getElementById('player-nick').value || "Striker";
     gameMode = document.querySelector('.mode-btn.active').id === 'mode-bot' ? 'bot' : 'online';
