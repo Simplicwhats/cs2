@@ -109,6 +109,7 @@ function build3DWeapon() {
     // Remove arma antiga
     while(gunGroup.children.length > 0) gunGroup.remove(gunGroup.children[0]);
     currentWeaponModel = null;
+    return;
     
     const curKey = getCurrentWeaponKey();
 
@@ -158,7 +159,13 @@ function initGameEngine() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
     scene.fog = new THREE.FogExp2(0x87ceeb, 0.002);
-
+const cuboTeste = new THREE.Mesh(
+        new THREE.BoxGeometry(2, 2, 2),
+        new THREE.MeshBasicMaterial({ color: 0xff0000 }) // Vermelho brilhante
+    );
+    cuboTeste.position.set(0, 1.8, -5); // 5 metros na frente da câmera
+    scene.add(cuboTeste);
+    
     camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1.8, 0);
 
