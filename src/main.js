@@ -54,10 +54,7 @@ function preloadWeapons() {
         gltfLoader.load(`models/${w}.glb`, (gltf) => {
             const mesh = gltf.scene;
 
-            // Se o modelo estiver vindo gigante ou invisível, teste scales menores como 0.01 ou maiores como 1.0
             mesh.scale.set(0.05, 0.05, 0.05); 
-            
-            // X (Direita/Esquerda), Y (Altura), Z (Profundidade)
             mesh.position.set(0.2, -0.25, -0.4); 
             mesh.rotation.set(0, Math.PI, 0); 
 
@@ -65,37 +62,32 @@ function preloadWeapons() {
         });
     });
 }
+
 function getSafeSpawn() { 
-    // Coordenada manual forçada bem no meio e alta o suficiente para você cair no chão do mapa
     return new THREE.Vector3(-1.42, 15.0, -6.71); 
 }
+
 function getCurrentWeaponKey() { return inventory[activeSlot] ? inventory[activeSlot].key : 'deagle'; }
 
 // 2. LÓGICA DAS MIRAS DINÂMICAS E SCOPE
 function updateCrosshairAndScope() {
     const curKey = getCurrentWeaponKey();
     
-    // Se a arma for AWP e estiver mirando
     if (curKey === 'awp' && isAiming) {
         crosshairElem.style.display = 'none';
         scopeOverlay.style.display = 'block';
-        if (currentWeaponModel) currentWeaponModel.visible = false; // Esconde a arma
-        camera.fov = 20; // Zoom Extremo
-    } 
-    // Se a arma for AWP mas NÃO estiver mirando (No Scope)
-    else if (curKey === 'awp' && !isAiming) {
-        crosshairElem.style.display = 'none'; // AWP não tem mira na tela normal
+        if (currentWeaponModel) currentWeaponModel.visible = false;
+        camera.fov = 20; 
+    } else if (curKey === 'awp' && !isAiming) {
+        crosshairElem.style.display = 'none';
         scopeOverlay.style.display = 'none';
         if (currentWeaponModel) currentWeaponModel.visible = true;
         camera.fov = 78;
-    } 
-    // Outras armas (AK, M4, Pistola)
-    else {
+    } else {
         scopeOverlay.style.display = 'none';
         crosshairElem.style.display = 'block';
         if (currentWeaponModel) currentWeaponModel.visible = true;
         
-        // Define se é mira pequena (pistolas/smg) ou grande (rifles)
         if (curKey === 'deagle' || curKey === 'p90') {
             crosshairElem.className = 'crosshair-small';
         } else {
@@ -112,7 +104,6 @@ function updateCrosshairAndScope() {
 function build3DWeapon() {
     if (!gunGroup) return;
     
-    // Remove arma antiga
     while(gunGroup.children.length > 0) gunGroup.remove(gunGroup.children[0]);
     currentWeaponModel = null;
     
@@ -124,12 +115,10 @@ function build3DWeapon() {
         gunGroup.add(nade);
         currentWeaponModel = nade;
     } else if (loadedWeapons[curKey]) {
-        // Clona o modelo carregado para colocar na câmera
         const wpnClone = loadedWeapons[curKey].clone();
         gunGroup.add(wpnClone);
         currentWeaponModel = wpnClone;
     } else {
-        // Fallback caso o cara não tenha baixado os arquivos .glb
         const placeholder = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.5), new THREE.MeshBasicMaterial({color: 0x555555}));
         placeholder.position.set(0.2, -0.2, -0.3);
         gunGroup.add(placeholder);
@@ -156,11 +145,11 @@ function updateHUD() {
     document.getElementById('armor-bar').style.width = `${armorDurability}%`;
     document.getElementById('helmet-bar').style.width = `${helmetDurability}%`;
     
-    updateCrosshairAndScope(); // Atualiza a mira
+    updateCrosshairAndScope();
 }
 
 function initGameEngine() {
-    preloadWeapons(); // Inicia o download das armas
+    preloadWeapons();
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
     scene.fog = new THREE.FogExp2(0x87ceeb, 0.002);
@@ -173,15 +162,15 @@ function initGameEngine() {
     dirLight.position.set(120, 200, 90); 
     scene.add(hemiLight, dirLight);
 
-    buildMapGeometries(scene); // Carrega map.glb
+    buildMapGeometries(scene);
 
     gunGroup = new THREE.Group();
     camera.add(gunGroup); 
     scene.add(camera);
 
-    setTimeout(build3DWeapon, 1000); // Dá 1 seg para os GLB carregarem
+    setTimeout(build3DWeapon, 1000);
 
-   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     
@@ -190,8 +179,6 @@ function initGameEngine() {
     container.style.position = 'absolute';
     container.style.top = '0';
     container.style.left = '0';
-    
-    // >>> ADICIONE ESTA LINHA ABAIXO PARA O CANVAS APARECER NA TELA <<<
     container.appendChild(renderer.domElement);
     
     const renderScene = new RenderPass(scene, camera);
@@ -211,11 +198,10 @@ function initMultiplayer() {
     const roomId = document.getElementById('room-id').value || "dust2-server";
     const myId = playerNick + "_" + Math.floor(Math.random() * 10000);
     
-    // Configuração robusta para GitHub Pages
     peer = new Peer(myId, {
         host: '0.peerjs.com',
         port: 443,
-        secure: true, // Obrigatório em sites HTTPS
+        secure: true,
         debug: 1
     });
 
@@ -223,7 +209,6 @@ function initMultiplayer() {
         document.getElementById('kill-feed').innerText = "Buscando servidor...";
         document.getElementById('kill-feed').style.display = 'block';
         
-        // Tenta conectar ao host da sala. Se falhar, eu viro o Host.
         conn = peer.connect("host_" + roomId);
         
         conn.on('open', () => {
@@ -232,7 +217,6 @@ function initMultiplayer() {
         });
 
         conn.on('error', () => {
-            // Se o host não existe, eu crio a sala (viro o host)
             isHost = true;
             peer.destroy();
             peer = new Peer("host_" + roomId, { host: '0.peerjs.com', port: 443, secure: true });
@@ -268,7 +252,6 @@ function sendNetworkData() {
 
 function createNetworkPlayer(id, nick) {
     const g = new THREE.Group();
-    // Corpo simples para inimigo (Substitua por GLTF no futuro se quiser)
     const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.5, 0.4), new THREE.MeshStandardMaterial({ color: 0xff0000 }));
     torso.position.y = 0.75;
     g.add(torso);
@@ -287,7 +270,6 @@ function shoot() {
     lastShotTime = now; inventory[activeSlot].ammo--; updateHUD();
     playShootSound();
 
-    // Expande a mira ao atirar (Recoil visual)
     if(curKey !== 'awp') {
         crosshairElem.style.transform = "translate(-50%, -50%) scale(1.5)";
         setTimeout(() => crosshairElem.style.transform = "translate(-50%, -50%) scale(1)", 150);
@@ -302,7 +284,7 @@ function shoot() {
 function setupEvents() {
     document.addEventListener('mousemove', (e) => {
         if (!pointerLocked || isDead || buyMenuOpen) return;
-        const sens = isAiming ? 0.0004 : 0.0016; // Sensibilidade cai muito ao mirar
+        const sens = isAiming ? 0.0004 : 0.0016; 
         cameraEuler.y -= e.movementX * sens;
         cameraEuler.x -= e.movementY * sens;
         cameraEuler.x = Math.max(-Math.PI/2.1, Math.min(Math.PI/2.1, cameraEuler.x));
@@ -337,12 +319,12 @@ function setupEvents() {
         if (buyMenuOpen || isDead) return;
         if (!pointerLocked) { document.body.requestPointerLock(); return; }
         if (e.button === 0) { isMouseDown = true; shoot(); }
-        if (e.button === 2) { isAiming = true; updateCrosshairAndScope(); } // Botão Direito = Mira
+        if (e.button === 2) { isAiming = true; updateCrosshairAndScope(); } 
     });
     
     document.addEventListener('mouseup', (e) => { 
         if (e.button === 0) isMouseDown = false;
-        if (e.button === 2) { isAiming = false; updateCrosshairAndScope(); } // Solta Botão Direito = Tira Mira
+        if (e.button === 2) { isAiming = false; updateCrosshairAndScope(); } 
     });
 }
 
@@ -363,9 +345,11 @@ function setupBuyMenuEvents() {
 function animate() {
     requestAnimationFrame(animate);
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
-if (mapSpawnPoint && camera.position.y === 1.8 && mapSpawnPoint.y !== 5) {
-    camera.position.copy(mapSpawnPoint);
-}
+
+    if (mapSpawnPoint && camera.position.y === 1.8 && mapSpawnPoint.y !== 5) {
+        camera.position.copy(mapSpawnPoint);
+    }
+
     if (pointerLocked && !isDead && !buyMenuOpen) {
         if (isMouseDown && itemsConfig[getCurrentWeaponKey()].auto) shoot();
 
@@ -383,29 +367,32 @@ if (mapSpawnPoint && camera.position.y === 1.8 && mapSpawnPoint.y !== 5) {
         const oldPos = camera.position.clone();
         camera.position.x += velocity.x * delta; camera.position.z += velocity.z * delta;
         
-        // Simples gravidade para andar no chão lido do modelo 3D
-       camera.position.y += velocity.y * delta;
-if (camera.position.y < -30) { 
-    // Se cair no void, teleporta de volta para o topo com segurança
-    camera.position.set(0, 20, 0); 
-    velocity.set(0, 0, 0);
-}
+        camera.position.y += velocity.y * delta;
+        if (camera.position.y < -30) { 
+            camera.position.set(0, 20, 0); 
+            velocity.set(0, 0, 0);
+        }
+
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
 
-// Só ativa a colisão das paredes se o jogo já passou dos primeiros 1.5 segundos (evita bugar no spawn)
-if (time > 1500) {
-    for (let box of collidables) {
-        if (playerBox.intersectsBox(box)) { 
-            camera.position.x = oldPos.x; 
-            camera.position.z = oldPos.z; 
-            break; 
+        if (time > 1500) {
+            for (let box of collidables) {
+                if (playerBox.intersectsBox(box)) { 
+                    camera.position.x = oldPos.x; 
+                    camera.position.z = oldPos.z; 
+                    break; 
+                }
+            }
         }
-    }
-}
     
-    if (cameraEuler.x > 0 && !isMouseDown) { cameraEuler.x = Math.max(0, cameraEuler.x - delta * 0.5); camera.quaternion.setFromEuler(cameraEuler); }
+        if (cameraEuler.x > 0 && !isMouseDown) { 
+            cameraEuler.x = Math.max(0, cameraEuler.x - delta * 0.5); 
+            camera.quaternion.setFromEuler(cameraEuler); 
+        }
 
-    sendNetworkData();
+        sendNetworkData();
+    }
+
     prevTime = time;
     if (composer && scene && camera) composer.render(); 
 }
@@ -416,7 +403,6 @@ btnStart.addEventListener('click', () => {
     document.getElementById('lobby-container').style.display = 'none';
     initGameEngine();
     
-    // >>> FORÇA A POSIÇÃO IMEDIATAMENTE E TAMBÉM APÓS 0.5 SEGUNDOS PARA ANULAR QUALQUER BUG <<<
     camera.position.set(-1.42, 25.0, -6.71);
     velocity.set(0, 0, 0);
     setTimeout(() => {
@@ -441,5 +427,6 @@ document.addEventListener('pointerlockchange', () => {
     if (!pointerLocked && !buyMenuOpen && !isDead) pauseScreen.style.display = 'flex'; 
     else pauseScreen.style.display = 'none';
 });
+
 document.getElementById('btn-resume').addEventListener('click', () => document.body.requestPointerLock());
 document.getElementById('btn-close-buy').addEventListener('click', () => { buyMenuOpen = false; buyMenu.classList.add('hidden'); document.body.requestPointerLock(); });
