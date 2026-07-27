@@ -7,7 +7,7 @@ export let mapWallMeshes = [];
 export let mapLoaded = false;
 
 // Altura perfeita que você descobriu (Y = 9.14) com X e Z do seu spawn
-export let mapSpawnPoint = new THREE.Vector3(28.33, -9.14, 24.17);
+export let mapSpawnPoint = new THREE.Vector3(28.33, -8.14, 24.17);
 
 export function buildMapGeometries(scene) {
 
@@ -43,7 +43,7 @@ export function buildMapGeometries(scene) {
             // Posiciona o piso invisível exatamente logo abaixo de Y = 9.14 (ex: em Y = 8.5 ou 9.0)
             solidFloor.position.set(
                 mapBox.getCenter(new THREE.Vector3()).x,
-                -9.0, // <-- Altura exata calculada para o seu pé bater e parar
+                -9.15, // <-- Altura exata calculada para o seu pé bater e parar
                 mapBox.getCenter(new THREE.Vector3()).z
             );
 
