@@ -58,4 +58,3 @@ export function buildMapGeometries(scene) {
         console.error("ERRO: Modelo 'models/mapa.glb' não encontrado!", error);
     });
 }
-
