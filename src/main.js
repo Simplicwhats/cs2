@@ -3,7 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js'; // FIX DA AK-47
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { itemsConfig, safeSpawns } from './config.js';
 import { playShootSound, playExplosionSound, playReloadSound } from './audio.js';
 import { buildMapGeometries, collidables, wallMeshes, mapWallMeshes, mapSpawnPoint, mapLoaded } from './map.js';
@@ -45,13 +45,13 @@ const buyMenu = document.getElementById('buy-menu');
 const crosshairElem = document.getElementById('crosshair');
 const scopeOverlay = document.getElementById('scope-overlay');
 
-// FIX: Escalas das armas ajustadas com base no seu feedback
+// ESCALAS AUMENTADAS DRASTICAMENTE - Se ainda ficarem pequenas, basta aumentar o valor de 'scale'
 const weaponScales = {
-    deagle: { scale: 0.15,  pos: new THREE.Vector3(0.15, -0.2, -0.35) }, // Aumentado
-    p90:    { scale: 0.005, pos: new THREE.Vector3(0.15, -0.2, -0.35) }, // Diminuído drasticamente
-    ak47:   { scale: 0.035, pos: new THREE.Vector3(0.15, -0.2, -0.35) }, // Ajustado
-    m4a4:   { scale: 0.05,  pos: new THREE.Vector3(0.15, -0.2, -0.35) }, // Aumentado
-    awp:    { scale: 0.045, pos: new THREE.Vector3(0.15, -0.2, -0.35) }  // Mantido (Ficou bom)
+    deagle: { scale: 0.8, pos: new THREE.Vector3(0.2, -0.25, -0.4) }, 
+    p90:    { scale: 0.05, pos: new THREE.Vector3(0.2, -0.25, -0.4) }, 
+    ak47:   { scale: 0.15, pos: new THREE.Vector3(0.2, -0.25, -0.4) }, 
+    m4a4:   { scale: 0.25, pos: new THREE.Vector3(0.2, -0.25, -0.4) }, 
+    awp:    { scale: 0.08, pos: new THREE.Vector3(0.2, -0.25, -0.4) }  
 };
 
 function preloadWeapons() {
@@ -65,6 +65,13 @@ function preloadWeapons() {
                 }
             });
             loadedWeapons[w] = model; 
+            
+            // FIX: Assim que a arma que o jogador está segurando terminar de baixar, mostra ela!
+            if (w === getCurrentWeaponKey()) {
+                build3DWeapon();
+            }
+        }, undefined, (err) => {
+            console.error(`ERRO ao carregar ${w}.glb. Verifique se o nome do arquivo está 100% minúsculo!`, err);
         });
     });
 }
@@ -104,7 +111,7 @@ function build3DWeapon() {
     currentWeaponModel = null;
     
     const curKey = getCurrentWeaponKey();
-    const config = weaponScales[curKey] || { scale: 0.03, pos: new THREE.Vector3(0.15, -0.2, -0.35) };
+    const config = weaponScales[curKey] || { scale: 0.1, pos: new THREE.Vector3(0.2, -0.25, -0.4) };
 
     if (activeSlot === 'grenade') {
         const nade = new THREE.Mesh(new THREE.SphereGeometry(0.08), new THREE.MeshStandardMaterial({color: 0x2e3d29}));
@@ -112,7 +119,6 @@ function build3DWeapon() {
         gunGroup.add(nade);
         currentWeaponModel = nade;
     } else if (loadedWeapons[curKey]) {
-        // FIX AK-47: Usando SkeletonUtils para garantir que ossos/animações venham para a mão do jogador
         const wpnClone = SkeletonUtils.clone(loadedWeapons[curKey]);
         wpnClone.scale.set(config.scale, config.scale, config.scale); 
         wpnClone.position.copy(config.pos); 
@@ -120,6 +126,7 @@ function build3DWeapon() {
         gunGroup.add(wpnClone);
         currentWeaponModel = wpnClone;
     } else {
+        // Placeholder exibido enquanto o download na internet não termina
         const placeholder = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.5), new THREE.MeshBasicMaterial({color: 0x555555}));
         placeholder.position.copy(config.pos);
         gunGroup.add(placeholder);
@@ -160,7 +167,6 @@ function initGameEngine() {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
     const dirLight = new THREE.DirectionalLight(0xffffff, 2.5); 
     dirLight.position.set(120, 200, 90); 
-    
     const ambientLight = new THREE.AmbientLight(0x404040, 1.5); 
     scene.add(hemiLight, dirLight, ambientLight);
 
@@ -170,7 +176,7 @@ function initGameEngine() {
     camera.add(gunGroup); 
     scene.add(camera);
 
-    setTimeout(build3DWeapon, 1000);
+    build3DWeapon();
 
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -324,20 +330,6 @@ function setupEvents() {
     });
 }
 
-function setupBuyMenuEvents() {
-    ['deagle', 'p90', 'ak47', 'm4a4', 'awp'].forEach(w => {
-        document.getElementById(`buy-${w}`).onclick = () => {
-            const item = itemsConfig[w];
-            if (playerMoney >= item.price) {
-                playerMoney -= item.price;
-                inventory[item.slot] = { key: w, ammo: item.maxAmmo, reserveAmmo: item.totalAmmo };
-                activeSlot = item.slot;
-                build3DWeapon(); updateHUD();
-            }
-        };
-    });
-}
-
 if (!window.debugSpawn) {
     window.debugSpawn = true;
     document.addEventListener("keydown", (e) => {
@@ -376,7 +368,6 @@ function animate() {
         
         proposedPos.y += velocity.y * delta;
 
-        // FIX COLLISION MAT: A caixa de colisão do jogador tem altura 1.8. O "pé" fica em Y - 0.9.
         playerBox.setFromCenterAndSize(proposedPos, new THREE.Vector3(0.6, 1.8, 0.6));
         
         let canMoveX = true, canMoveZ = true;
@@ -384,8 +375,11 @@ function animate() {
         if (time > 1000) {
             for (let box of collidables) {
                 if (playerBox.intersectsBox(box)) {
-                    // Impede o jogador de cair infinitamente através do chão
-                    if (velocity.y < 0 && (camera.position.y - 0.9) >= box.max.y - 0.5) {
+                    // FIX DA FLUTUAÇÃO: Calcula a distância entre o seu pé e o topo do obstáculo
+                    const distToTop = box.max.y - (camera.position.y - 0.9);
+                    
+                    // Só te empurra pro topo se for um "degrau/chão" (distância pequena), não uma parede gigante
+                    if (velocity.y < 0 && distToTop >= 0 && distToTop < 1.5) {
                         proposedPos.y = box.max.y + 0.9; 
                         velocity.y = 0;
                         canJump = true;
@@ -406,7 +400,6 @@ function animate() {
         if (canMoveZ) camera.position.z = proposedPos.z;
         camera.position.y = proposedPos.y;
 
-        // Limite máximo de queda (caso tudo dê errado)
         if (camera.position.y < mapSpawnPoint.y - 50) { 
             camera.position.copy(mapSpawnPoint); 
             velocity.set(0, 0, 0);
