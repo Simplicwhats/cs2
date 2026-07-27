@@ -19,17 +19,24 @@ export function buildMapGeometries(scene) {
     loader.load('models/mapa.glb', (gltf) => {
         const mapModel = gltf.scene;
         
-        mapModel.scale.set(1, 1, 1); 
+        // CORREÇÃO DE POSIÇÃO/ORIENTAÇÃO DO MAPA:
+        // Se o mapa está de cabeça para baixo, podemos inverter o eixo Y ou girá-lo.
+        // Tente inverter a escala Y para -1 caso ele esteja espelhado verticalmente:
+        mapModel.scale.set(1, -1, 1); 
+        
+        // Ou se preferir girar 180 graus no eixo X:
+        // mapModel.rotation.x = Math.PI;
+
         mapModel.position.set(0, 0, 0);
         
-        // Padrão de spawn caso o mapa carregue
-        mapSpawnPoint.set(0, 2, 0);
+        // Ajusta o ponto de spawn para uma altura segura considerando a inversão
+        mapSpawnPoint.set(0, 5, 0);
 
-        // 1. Piso de segurança invisível robusto na base (Y = 0)
+        // Piso de segurança invisível caso precise
         const floorGeo = new THREE.BoxGeometry(500, 2, 500);
         const floorMat = new THREE.MeshBasicMaterial({ visible: false });
         const safetyFloor = new THREE.Mesh(floorGeo, floorMat);
-        safetyFloor.position.set(0, -1, 0); 
+        safetyFloor.position.set(0, -10, 0); 
         
         const safetyBox = new THREE.Box3().setFromObject(safetyFloor);
         collidables.push(safetyBox);
@@ -41,11 +48,7 @@ export function buildMapGeometries(scene) {
                 child.receiveShadow = true;
                 
                 const box = new THREE.Box3().setFromObject(child);
-                
-                // Adiciona colisão em tudo que não for teto extremamente alto
-                if (box.max.y < 40) {
-                    collidables.push(box);
-                }
+                collidables.push(box);
 
                 wallMeshes.push(child);
                 mapWallMeshes.push(child);
@@ -57,4 +60,3 @@ export function buildMapGeometries(scene) {
     }, undefined, (error) => {
         console.error("ERRO: Modelo 'models/mapa.glb' não encontrado!", error);
     });
-}
