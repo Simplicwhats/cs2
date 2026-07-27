@@ -29,7 +29,7 @@ export function buildMapGeometries(scene) {
         mapBox.getCenter(center);
         
         // 2. DEFINE O SPAWN NO CENTRO DO MAPA, LIGEIRAMENTE ACIMA DO PONTO MAIS ALTO/MEDIO
-        mapSpawnPoint.set(center.x, mapBox.min.y + 3, center.z);
+        mapSpawnPoint.set(center.x, mapBox.min.y + 8, center.z);
         
         console.log("==========================================");
         console.log("📌 SPAWN RECOMENDADO ENCONTRADO:");
