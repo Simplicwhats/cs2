@@ -6,8 +6,9 @@ export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false;
 
-// Spawn inicial padrão caso demore a carregar
-export let mapSpawnPoint = new THREE.Vector3(28.33, -25.0, 24.17);
+// COLOQUE AQUI A SUA ALTURA EXATA (Y) QUE VOCÊ DESCOBRIU COM O F8
+// Substitua o -4.14 pelo valor ideal onde você fica em pé no chão perfeitamente
+export let mapSpawnPoint = new THREE.Vector3(28.33, -9.14, 24.17);
 
 export function buildMapGeometries(scene) {
 
@@ -28,9 +29,6 @@ export function buildMapGeometries(scene) {
             mapModel.scale.set(1, 1, 1);
 
             const mapBox = new THREE.Box3().setFromObject(mapModel);
-
-            // CORREÇÃO DO SPAWN: Usando o piso real do mapa (min.y) mais uma altura segura de personagem (ex: 2 unidades acima do chão)
-            mapSpawnPoint.set(28.33, mapBox.min.y + 2.0, 24.17);
 
             // Piso invisível de segurança abaixo do mapa
             const floor = new THREE.Mesh(
@@ -72,7 +70,7 @@ export function buildMapGeometries(scene) {
             mapLoaded = true;
 
             console.log("Mapa carregado com sucesso.");
-            console.log("Novo Spawn ajustado:", mapSpawnPoint);
+            console.log("Spawn definido em:", mapSpawnPoint);
         },
         undefined,
         (err) => {
