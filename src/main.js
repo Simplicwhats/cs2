@@ -53,18 +53,26 @@ function preloadWeapons() {
     weaponsToLoad.forEach(w => {
         gltfLoader.load(`models/${w}.glb`, (gltf) => {
             const mesh = gltf.scene;
-            // >>> AUMENTADO DE 0.1 PARA 1.0 (ou ajuste se precisar de mais/menos) <<<
-            mesh.scale.set(1.0, 1.0, 1.0); 
-            mesh.position.set(0.2, -0.2, -0.4);
-            mesh.rotation.y = Math.PI; 
+            
+            // Ajuste a escala conforme o tamanho do seu modelo
+            mesh.scale.set(0.8, 0.8, 0.8); 
+            
+            // >>> AJUSTE A POSIÇÃO AQUI PARA TRAVÁ-LA NA SUA MÃO <<<
+            // X (Direita/Esquerda), Y (Cima/Baixo), Z (Frente/Trás)
+            mesh.position.set(0.15, -0.25, -0.5); 
+            
+            // Ajuste a rotação se a arma estiver apontando para o lado errado
+            mesh.rotation.set(0, Math.PI, 0); 
+
             loadedWeapons[w] = mesh;
         });
     });
 }
-
 function getSafeSpawn() { 
-    // Defina aqui a coordenada exata (X, Y, Z) de uma área livre dentro do seu mapa.glb
-    return new THREE.Vector3(0, 5, 0); // Exemplo: altura Y=5 para cair no chão ou outra coordenada
+    // Força o spawn no centro do mapa com altura de 10 unidades para garantir que cairá no piso
+    camera.position.set(0, 10, 0);
+    velocity.set(0, 0, 0);
+    return camera.position;
 }
 function getCurrentWeaponKey() { return inventory[activeSlot] ? inventory[activeSlot].key : 'deagle'; }
 
