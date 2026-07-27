@@ -6,7 +6,7 @@ export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false; 
 
-export let mapSpawnPoint = new THREE.Vector3(0, 10, 0); // Spawn inicial seguro no ar, o ray/piso segura depois
+export let mapSpawnPoint = new THREE.Vector3(0, 2, 0); // Spawn inicial seguro no ar, o ray/piso segura depois
 
 export function buildMapGeometries(scene) {
     collidables.length = 0; 
@@ -23,7 +23,7 @@ export function buildMapGeometries(scene) {
         mapModel.position.set(0, 0, 0);
         
         // Padrão de spawn caso o mapa carregue
-        mapSpawnPoint.set(0, 5, 0);
+        mapSpawnPoint.set(0, 2, 0);
 
         // 1. Piso de segurança invisível robusto na base (Y = 0)
         const floorGeo = new THREE.BoxGeometry(500, 2, 500);
