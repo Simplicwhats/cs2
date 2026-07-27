@@ -6,7 +6,7 @@ export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false; 
 
-export let mapSpawnPoint = new THREE.Vector3(0, 2, 0); // Spawn inicial seguro no ar, o ray/piso segura depois
+export let mapSpawnPoint = new THREE.Vector3(0, 5, 0);
 
 export function buildMapGeometries(scene) {
     collidables.length = 0; 
@@ -19,24 +19,17 @@ export function buildMapGeometries(scene) {
     loader.load('models/mapa.glb', (gltf) => {
         const mapModel = gltf.scene;
         
-        // CORREÇÃO DE POSIÇÃO/ORIENTAÇÃO DO MAPA:
-        // Se o mapa está de cabeça para baixo, podemos inverter o eixo Y ou girá-lo.
-        // Tente inverter a escala Y para -1 caso ele esteja espelhado verticalmente:
-        mapModel.scale.set(1, -1, 1); 
-        
-        // Ou se preferir girar 180 graus no eixo X:
-        // mapModel.rotation.x = Math.PI;
-
+        // Ajusta escala e orientação do mapa para desvirar caso esteja invertido
+        mapModel.scale.set(1, 1, 1); 
         mapModel.position.set(0, 0, 0);
         
-        // Ajusta o ponto de spawn para uma altura segura considerando a inversão
         mapSpawnPoint.set(0, 5, 0);
 
-        // Piso de segurança invisível caso precise
+        // Piso de segurança invisível na base
         const floorGeo = new THREE.BoxGeometry(500, 2, 500);
         const floorMat = new THREE.MeshBasicMaterial({ visible: false });
         const safetyFloor = new THREE.Mesh(floorGeo, floorMat);
-        safetyFloor.position.set(0, -10, 0); 
+        safetyFloor.position.set(0, -1, 0); 
         
         const safetyBox = new THREE.Box3().setFromObject(safetyFloor);
         collidables.push(safetyBox);
@@ -48,7 +41,10 @@ export function buildMapGeometries(scene) {
                 child.receiveShadow = true;
                 
                 const box = new THREE.Box3().setFromObject(child);
-                collidables.push(box);
+                
+                if (box.max.y < 40) {
+                    collidables.push(box);
+                }
 
                 wallMeshes.push(child);
                 mapWallMeshes.push(child);
@@ -60,3 +56,4 @@ export function buildMapGeometries(scene) {
     }, undefined, (error) => {
         console.error("ERRO: Modelo 'models/mapa.glb' não encontrado!", error);
     });
+}
