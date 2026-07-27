@@ -24,11 +24,11 @@ export function buildMapGeometries(scene) {
         
         mapSpawnPoint.set(0, 15, 0);
 
-        // Cria um piso de segurança invisível grande caso o modelo .glb não tenha colisão sólida detectável
-        const floorGeo = new THREE.BoxGeometry(200, 1, 200);
+        // 1. Cria um piso sólido de segurança na base (Y = 0)
+        const floorGeo = new THREE.BoxGeometry(300, 1, 300);
         const floorMat = new THREE.MeshBasicMaterial({ visible: false });
         const safetyFloor = new THREE.Mesh(floorGeo, floorMat);
-        safetyFloor.position.set(0, -1, 0); // Fica logo abaixo do mapa
+        safetyFloor.position.set(0, -0.5, 0); 
         
         const safetyBox = new THREE.Box3().setFromObject(safetyFloor);
         collidables.push(safetyBox);
@@ -39,11 +39,15 @@ export function buildMapGeometries(scene) {
                 child.castShadow = true;
                 child.receiveShadow = true;
                 
-                // Evita que objetos pequenos/teto sirvam de colisão total que bloqueie o player
                 const box = new THREE.Box3().setFromObject(child);
                 
-                // Adiciona apenas elementos sólidos relevantes à colisão
-                collidables.push(box);
+                // FILTRO INTELIGENTE: 
+                // Só adiciona colisão se o objeto estiver abaixo da altura máxima de teto (ex: Y < 12).
+                // Isso ignora tetos, lâmpadas e andares superiores que causam o travamento.
+                if (box.max.y < 12) {
+                    collidables.push(box);
+                }
+
                 wallMeshes.push(child);
                 mapWallMeshes.push(child);
             }
