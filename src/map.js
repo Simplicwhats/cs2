@@ -18,40 +18,29 @@ export function buildMapGeometries(scene) {
     const loader = new GLTFLoader();
     
     loader.load('models/mapa.glb', (gltf) => {
-        const mapModel = gltf.scene;
-        
-        mapModel.scale.set(1, 1, 1); 
-        mapModel.position.set(0, 0, 0);
-        
-        // 1. CALCULA A CAIXA TOTA DO MAPA (BOUNDING BOX)
-        const mapBox = new THREE.Box3().setFromObject(mapModel);
-        const center = new THREE.Vector3();
-        mapBox.getCenter(center);
-        
-        // 2. DEFINE O SPAWN NO CENTRO DO MAPA, LIGEIRAMENTE ACIMA DO PONTO MAIS ALTO/MEDIO
-        mapSpawnPoint.set(center.x, mapBox.min.y + 8, center.z);
-        
-        console.log("==========================================");
-        console.log("📌 SPAWN RECOMENDADO ENCONTRADO:");
-        console.log(`X: ${center.x.toFixed(2)}, Y: ${(mapBox.max.y + 2).toFixed(2)}, Z: ${center.z.toFixed(2)}`);
-        console.log("==========================================");
+    const mapModel = gltf.scene;
+    mapModel.scale.set(1, 1, 1); 
+    mapModel.position.set(0, 0, 0);
+    
+    // >>> DEFININDO UM SPAWN MANUAL SEGURO PARA O CS_OFFICE <<<
+    // Se ainda cair no void, altere o valor de Y para 10, 20 ou 30
+    mapSpawnPoint.set(0, 15, 0); 
 
-        mapModel.traverse((child) => {
-            if (child.isMesh) {
-                child.castShadow = true;
-                child.receiveShadow = true;
-                
-                const box = new THREE.Box3().setFromObject(child);
-                box.userData = { mesh: child };
-                collidables.push(box);
-                wallMeshes.push(child);
-                mapWallMeshes.push(child);
-            }
-        });
-        
-        scene.add(mapModel);
-        mapLoaded = true;
-    }, undefined, (error) => {
-        console.error("ERRO: Modelo 'models/mapa.glb' não encontrado!", error);
+    mapModel.traverse((child) => {
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            
+            const box = new THREE.Box3().setFromObject(child);
+            box.userData = { mesh: child };
+            collidables.push(box);
+            wallMeshes.push(child);
+            mapWallMeshes.push(child);
+        }
     });
-}
+    
+    scene.add(mapModel);
+    mapLoaded = true;
+}, undefined, (error) => {
+    console.error("ERRO ao carregar o mapa:", error);
+});
