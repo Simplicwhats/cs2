@@ -350,7 +350,26 @@ function setupBuyMenuEvents() {
 function animate() {
     requestAnimationFrame(animate);
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
+// F8 = mostra a posição atual do jogador
+if (!window.debugSpawn) {
 
+    window.debugSpawn = true;
+
+    document.addEventListener("keydown", (e) => {
+
+        if (e.code === "F8") {
+
+            console.clear();
+
+            console.log(
+                `mapSpawnPoint.set(${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)});`
+            );
+
+        }
+
+    });
+
+}
     // Aplica o spawn do mapa configurado no map.js assim que ele carrega
     if (mapLoaded && mapSpawnPoint && !window.spawnApplied) {
         camera.position.copy(mapSpawnPoint);
