@@ -53,16 +53,19 @@ function preloadWeapons() {
     weaponsToLoad.forEach(w => {
         gltfLoader.load(`models/${w}.glb`, (gltf) => {
             const mesh = gltf.scene;
-            // Ajustes de posição padrão (varia conforme o modelo baixado)
-            mesh.scale.set(0.1, 0.1, 0.1);
+            // >>> AUMENTADO DE 0.1 PARA 1.0 (ou ajuste se precisar de mais/menos) <<<
+            mesh.scale.set(1.0, 1.0, 1.0); 
             mesh.position.set(0.2, -0.2, -0.4);
-            mesh.rotation.y = Math.PI; // Vira para frente
+            mesh.rotation.y = Math.PI; 
             loadedWeapons[w] = mesh;
         });
     });
 }
 
-function getSafeSpawn() { return new THREE.Vector3(0, 1.8, 0); }
+function getSafeSpawn() { 
+    // Defina aqui a coordenada exata (X, Y, Z) de uma área livre dentro do seu mapa.glb
+    return new THREE.Vector3(0, 5, 0); // Exemplo: altura Y=5 para cair no chão ou outra coordenada
+}
 function getCurrentWeaponKey() { return inventory[activeSlot] ? inventory[activeSlot].key : 'deagle'; }
 
 // 2. LÓGICA DAS MIRAS DINÂMICAS E SCOPE
