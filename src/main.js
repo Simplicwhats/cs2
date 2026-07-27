@@ -5,7 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { itemsConfig, safeSpawns } from './config.js';
 import { playShootSound, playExplosionSound, playReloadSound } from './audio.js';
-import { buildMapGeometries, collidables, wallMeshes, mapWallMeshes, mapSpawnPoint } from './map.js';
+import { buildMapGeometries, collidables, wallMeshes, mapWallMeshes, mapSpawnPoint, mapLoaded } from './map.js';
 import { updateBotLogic } from './bot.js';
 
 let gameMode = 'bot';
@@ -21,7 +21,7 @@ let lastShotTime = 0, isAiming = false, pointerLocked = false, buyMenuOpen = fal
 let scene, camera, renderer, composer, prevTime = performance.now();
 let moveF = false, moveB = false, moveL = false, moveR = false, canJump = true;
 let isRunning = false, isCrouching = false;
-let velocity = new THREE.Vector3(), currentHeight = 25.0;
+let velocity = new THREE.Vector3();
 let hp = 100, isDead = false;
 
 // Sistema 3D de armas
@@ -33,7 +33,6 @@ const gltfLoader = new GLTFLoader();
 let activeGrenades = [], tracers = [], bots = [], networkPlayers = {}, playerScores = {}; 
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 let playerBox = new THREE.Box3();
-let usedSpawns = [];
 
 // Multiplayer PeerJS Robusto (Compatível com GitHub Pages HTTPS)
 let peer, conn;
@@ -61,10 +60,6 @@ function preloadWeapons() {
             loadedWeapons[w] = mesh;
         });
     });
-}
-
-function getSafeSpawn() { 
-    return new THREE.Vector3(-1.42, 15.0, -6.71); 
 }
 
 function getCurrentWeaponKey() { return inventory[activeSlot] ? inventory[activeSlot].key : 'deagle'; }
@@ -346,8 +341,10 @@ function animate() {
     requestAnimationFrame(animate);
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
 
-    if (mapSpawnPoint && camera.position.y === 1.8 && mapSpawnPoint.y !== 5) {
+    // Aplica o spawn do mapa configurado no map.js assim que ele carrega
+    if (mapLoaded && mapSpawnPoint && !window.spawnApplied) {
         camera.position.copy(mapSpawnPoint);
+        window.spawnApplied = true;
     }
 
     if (pointerLocked && !isDead && !buyMenuOpen) {
@@ -364,7 +361,7 @@ function animate() {
         if (moveL) velocity.addScaledVector(camRight, -speed * delta);
         if (moveR) velocity.addScaledVector(camRight, speed * delta);
 
-       const oldPos = camera.position.clone();
+        const oldPos = camera.position.clone();
         camera.position.x += velocity.x * delta; 
         camera.position.z += velocity.z * delta;
         camera.position.y += velocity.y * delta;
@@ -397,7 +394,7 @@ function animate() {
 
         // Segurança caso caia no void
         if (camera.position.y < -30) { 
-            camera.position.set(0, 15, 0); 
+            camera.position.copy(mapSpawnPoint || new THREE.Vector3(0, 15, 0)); 
             velocity.set(0, 0, 0);
         }
     
@@ -417,14 +414,11 @@ btnStart.addEventListener('click', () => {
     playerNick = document.getElementById('player-nick').value || "Striker";
     gameMode = document.querySelector('.mode-btn.active').id === 'mode-bot' ? 'bot' : 'online';
     document.getElementById('lobby-container').style.display = 'none';
+    
+    window.spawnApplied = false; // Permite aplicar o novo spawn do mapa
     initGameEngine();
     
-    camera.position.set(-1.42, 25.0, -6.71);
     velocity.set(0, 0, 0);
-    setTimeout(() => {
-        camera.position.set(-1.42, 25.0, -6.71);
-        velocity.set(0, 0, 0);
-    }, 500);
 
     updateHUD(); animate();
     document.body.requestPointerLock();
