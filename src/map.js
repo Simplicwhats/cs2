@@ -6,32 +6,41 @@ export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false; 
 
+// Posição calculada para o jogador nascer perfeitamente
+export let mapSpawnPoint = new THREE.Vector3(0, 5, 0);
+
 export function buildMapGeometries(scene) {
     collidables.length = 0; 
     wallMeshes.length = 0; 
     mapWallMeshes.length = 0;
     mapLoaded = false;
 
-    // Chão invisível de segurança caso o modelo não carregue
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(320, 320), new THREE.MeshStandardMaterial({ color: 0x222222 }));
-    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
-
     const loader = new GLTFLoader();
     
-    // CARREGA O MAPA 3D DA PASTA MODELS
     loader.load('models/mapa.glb', (gltf) => {
         const mapModel = gltf.scene;
         
-        // Ajusta tamanho se necessário (depende do arquivo que você baixou)
         mapModel.scale.set(1, 1, 1); 
         mapModel.position.set(0, 0, 0);
         
+        // 1. CALCULA A CAIXA TOTA DO MAPA (BOUNDING BOX)
+        const mapBox = new THREE.Box3().setFromObject(mapModel);
+        const center = new THREE.Vector3();
+        mapBox.getCenter(center);
+        
+        // 2. DEFINE O SPAWN NO CENTRO DO MAPA, LIGEIRAMENTE ACIMA DO PONTO MAIS ALTO/MEDIO
+        mapSpawnPoint.set(center.x, mapBox.max.y + 2, center.z);
+        
+        console.log("==========================================");
+        console.log("📌 SPAWN RECOMENDADO ENCONTRADO:");
+        console.log(`X: ${center.x.toFixed(2)}, Y: ${(mapBox.max.y + 2).toFixed(2)}, Z: ${center.z.toFixed(2)}`);
+        console.log("==========================================");
+
         mapModel.traverse((child) => {
             if (child.isMesh) {
                 child.castShadow = true;
                 child.receiveShadow = true;
                 
-                // Cria caixa de colisão para CADA parede do modelo 3D
                 const box = new THREE.Box3().setFromObject(child);
                 box.userData = { mesh: child };
                 collidables.push(box);
@@ -42,8 +51,7 @@ export function buildMapGeometries(scene) {
         
         scene.add(mapModel);
         mapLoaded = true;
-        console.log("Mapa 3D carregado com sucesso!");
     }, undefined, (error) => {
-        console.error("ERRO: Modelo 'models/mapa.glb' não encontrado! Coloque o arquivo na pasta.", error);
+        console.error("ERRO: Modelo 'models/mapa.glb' não encontrado!", error);
     });
 }
