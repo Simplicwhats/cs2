@@ -6,7 +6,8 @@ export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false;
 
-export let mapSpawnPoint = new THREE.Vector3(0, 2, 0);
+// Spawn inicial padrão caso demore a carregar
+export let mapSpawnPoint = new THREE.Vector3(28.33, -25.0, 24.17);
 
 export function buildMapGeometries(scene) {
 
@@ -19,22 +20,19 @@ export function buildMapGeometries(scene) {
 
     loader.load(
         'models/mapa.glb',
-
         (gltf) => {
-
             const mapModel = gltf.scene;
 
             mapModel.position.set(0, 0, 0);
             mapModel.rotation.set(0, 0, 0);
             mapModel.scale.set(1, 1, 1);
 
-            // Descobre o tamanho do mapa
             const mapBox = new THREE.Box3().setFromObject(mapModel);
 
-            // Spawn automático um pouco acima do piso
-            mapSpawnPoint.set(28.33, -4.14, 24.17);
+            // CORREÇÃO DO SPAWN: Usando o piso real do mapa (min.y) mais uma altura segura de personagem (ex: 2 unidades acima do chão)
+            mapSpawnPoint.set(28.33, mapBox.min.y + 2.0, 24.17);
 
-            // Piso invisível
+            // Piso invisível de segurança abaixo do mapa
             const floor = new THREE.Mesh(
                 new THREE.BoxGeometry(
                     mapBox.max.x - mapBox.min.x + 100,
@@ -51,11 +49,9 @@ export function buildMapGeometries(scene) {
             );
 
             scene.add(floor);
-
             collidables.push(new THREE.Box3().setFromObject(floor));
 
             mapModel.traverse((child) => {
-
                 if (!child.isMesh) return;
 
                 child.castShadow = true;
@@ -66,28 +62,21 @@ export function buildMapGeometries(scene) {
 
                 const box = new THREE.Box3().setFromObject(child);
 
-                // Ignora teto
+                // Ignora o teto para o sistema de colisão não te prender lá em cima
                 if (box.min.y < mapBox.min.y + 12) {
                     collidables.push(box);
                 }
-
             });
 
             scene.add(mapModel);
-
             mapLoaded = true;
 
-            console.log("Mapa carregado.");
-            console.log("Spawn:", mapSpawnPoint);
-
+            console.log("Mapa carregado com sucesso.");
+            console.log("Novo Spawn ajustado:", mapSpawnPoint);
         },
-
         undefined,
-
         (err) => {
-            console.error(err);
+            console.error("Erro ao carregar o mapa:", err);
         }
-
     );
-
 }
