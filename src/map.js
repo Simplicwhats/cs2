@@ -6,7 +6,7 @@ export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false; 
 
-export let mapSpawnPoint = new THREE.Vector3(0, 2, 0);
+export let mapSpawnPoint = new THREE.Vector3(0, 10, 0); // Spawn inicial seguro no ar, o ray/piso segura depois
 
 export function buildMapGeometries(scene) {
     collidables.length = 0; 
@@ -22,13 +22,14 @@ export function buildMapGeometries(scene) {
         mapModel.scale.set(1, 1, 1); 
         mapModel.position.set(0, 0, 0);
         
-        mapSpawnPoint.set(0, 2, 0);
+        // Padrão de spawn caso o mapa carregue
+        mapSpawnPoint.set(0, 5, 0);
 
-        // 1. Cria um piso sólido de segurança na base (Y = 0)
-        const floorGeo = new THREE.BoxGeometry(300, 1, 300);
+        // 1. Piso de segurança invisível robusto na base (Y = 0)
+        const floorGeo = new THREE.BoxGeometry(500, 2, 500);
         const floorMat = new THREE.MeshBasicMaterial({ visible: false });
         const safetyFloor = new THREE.Mesh(floorGeo, floorMat);
-        safetyFloor.position.set(0, -0.5, 0); 
+        safetyFloor.position.set(0, -1, 0); 
         
         const safetyBox = new THREE.Box3().setFromObject(safetyFloor);
         collidables.push(safetyBox);
@@ -41,10 +42,8 @@ export function buildMapGeometries(scene) {
                 
                 const box = new THREE.Box3().setFromObject(child);
                 
-                // FILTRO INTELIGENTE: 
-                // Só adiciona colisão se o objeto estiver abaixo da altura máxima de teto (ex: Y < 12).
-                // Isso ignora tetos, lâmpadas e andares superiores que causam o travamento.
-                if (box.max.y < 12) {
+                // Adiciona colisão em tudo que não for teto extremamente alto
+                if (box.max.y < 40) {
                     collidables.push(box);
                 }
 
