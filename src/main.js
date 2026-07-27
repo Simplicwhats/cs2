@@ -384,17 +384,24 @@ if (mapSpawnPoint && camera.position.y === 1.8 && mapSpawnPoint.y !== 5) {
         camera.position.x += velocity.x * delta; camera.position.z += velocity.z * delta;
         
         // Simples gravidade para andar no chão lido do modelo 3D
-        camera.position.y += velocity.y * delta;
-// Se cair abaixo de um limite seguro (ex: -20), ele resgata você para cima
-if (camera.position.y < -20) { 
-    camera.position.set(-1.42, 25.0, -6.71); 
-    velocity.y = 0; 
+       camera.position.y += velocity.y * delta;
+if (camera.position.y < -30) { 
+    // Se cair no void, teleporta de volta para o topo com segurança
+    camera.position.set(0, 20, 0); 
+    velocity.set(0, 0, 0);
 }
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
-        for (let box of collidables) {
-            if (playerBox.intersectsBox(box)) { camera.position.x = oldPos.x; camera.position.z = oldPos.z; break; }
+
+// Só ativa a colisão das paredes se o jogo já passou dos primeiros 1.5 segundos (evita bugar no spawn)
+if (time > 1500) {
+    for (let box of collidables) {
+        if (playerBox.intersectsBox(box)) { 
+            camera.position.x = oldPos.x; 
+            camera.position.z = oldPos.z; 
+            break; 
         }
     }
+}
     
     if (cameraEuler.x > 0 && !isMouseDown) { cameraEuler.x = Math.max(0, cameraEuler.x - delta * 0.5); camera.quaternion.setFromEuler(cameraEuler); }
 
