@@ -369,20 +369,24 @@ function animate() {
         camera.position.z += velocity.z * delta;
         camera.position.y += velocity.y * delta;
 
-        // Atualiza a caixa de colisão do jogador
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
 
-        // Checagem de colisão total (Paredes E Chão)
         if (time > 1000) {
             for (let box of collidables) {
                 if (playerBox.intersectsBox(box)) {
-                    // Se estiver caindo e bater em cima de uma caixa, aterrissa nela
-                    if (velocity.y < 0 && oldPos.y >= box.max.y) {
-                        camera.position.y = box.max.y + 0.9; // Mantém em cima do piso
+                    // Verifica se o jogador está caindo e os pés estão acima ou na linha do topo da caixa
+                    if (velocity.y < 0 && oldPos.y - 0.9 >= box.max.y - 0.4) {
+                        camera.position.y = box.max.y + 0.9; // Pousa perfeitamente em cima do piso
                         velocity.y = 0;
                         canJump = true;
-                    } else {
-                        // Colisão com paredes normais
+                    } 
+                    // Se for o teto (batendo por baixo), apenas cessa a velocidade de subida
+                    else if (velocity.y > 0 && oldPos.y + 0.9 <= box.min.y + 0.4) {
+                        camera.position.y = box.min.y - 0.9;
+                        velocity.y = 0;
+                    } 
+                    else {
+                        // Colisão horizontal padrão (Paredes)
                         camera.position.x = oldPos.x; 
                         camera.position.z = oldPos.z; 
                     }
@@ -391,7 +395,7 @@ function animate() {
             }
         }
 
-        // Segurança contra queda infinita no void
+        // Segurança caso caia no void
         if (camera.position.y < -30) { 
             camera.position.set(0, 15, 0); 
             velocity.set(0, 0, 0);
