@@ -5,7 +5,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { itemsConfig, safeSpawns } from './config.js';
 import { playShootSound, playExplosionSound, playReloadSound } from './audio.js';
-import { buildMapGeometries, collidables, wallMeshes, mapWallMeshes } from './map.js';
+import { buildMapGeometries, collidables, wallMeshes, mapWallMeshes, mapSpawnPoint } from './map.js';
 import { updateBotLogic } from './bot.js';
 
 let gameMode = 'bot';
@@ -53,15 +53,12 @@ function preloadWeapons() {
     weaponsToLoad.forEach(w => {
         gltfLoader.load(`models/${w}.glb`, (gltf) => {
             const mesh = gltf.scene;
+
+            // Se o modelo estiver vindo gigante ou invisível, teste scales menores como 0.01 ou maiores como 1.0
+            mesh.scale.set(0.05, 0.05, 0.05); 
             
-            // Ajuste a escala conforme o tamanho do seu modelo
-            mesh.scale.set(0.8, 0.8, 0.8); 
-            
-            // >>> AJUSTE A POSIÇÃO AQUI PARA TRAVÁ-LA NA SUA MÃO <<<
-            // X (Direita/Esquerda), Y (Cima/Baixo), Z (Frente/Trás)
-            mesh.position.set(0.15, -0.25, -0.5); 
-            
-            // Ajuste a rotação se a arma estiver apontando para o lado errado
+            // X (Direita/Esquerda), Y (Altura), Z (Profundidade)
+            mesh.position.set(0.2, -0.25, -0.4); 
             mesh.rotation.set(0, Math.PI, 0); 
 
             loadedWeapons[w] = mesh;
@@ -69,10 +66,7 @@ function preloadWeapons() {
     });
 }
 function getSafeSpawn() { 
-    // Força o spawn no centro do mapa com altura de 10 unidades para garantir que cairá no piso
-    camera.position.set(0, 10, 0);
-    velocity.set(0, 0, 0);
-    return camera.position;
+    return mapSpawnPoint.clone(); 
 }
 function getCurrentWeaponKey() { return inventory[activeSlot] ? inventory[activeSlot].key : 'deagle'; }
 
@@ -368,7 +362,9 @@ function setupBuyMenuEvents() {
 function animate() {
     requestAnimationFrame(animate);
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
-
+if (mapSpawnPoint && camera.position.y === 1.8 && mapSpawnPoint.y !== 5) {
+    camera.position.copy(mapSpawnPoint);
+}
     if (pointerLocked && !isDead && !buyMenuOpen) {
         if (isMouseDown && itemsConfig[getCurrentWeaponKey()].auto) shoot();
 
