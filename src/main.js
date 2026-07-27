@@ -45,7 +45,7 @@ const buyMenu = document.getElementById('buy-menu');
 const crosshairElem = document.getElementById('crosshair');
 const scopeOverlay = document.getElementById('scope-overlay');
 
-// ESCALAS AUMENTADAS DRASTICAMENTE - Se ainda ficarem pequenas, basta aumentar o valor de 'scale'
+// ESCALAS AUMENTADAS DRASTICAMENTE
 const weaponScales = {
     deagle: { scale: 0.8, pos: new THREE.Vector3(0.2, -0.25, -0.4) }, 
     p90:    { scale: 0.05, pos: new THREE.Vector3(0.2, -0.25, -0.4) }, 
@@ -66,7 +66,7 @@ function preloadWeapons() {
             });
             loadedWeapons[w] = model; 
             
-            // FIX: Assim que a arma que o jogador está segurando terminar de baixar, mostra ela!
+            // Atualiza a arma na mão instantaneamente após carregar
             if (w === getCurrentWeaponKey()) {
                 build3DWeapon();
             }
@@ -126,7 +126,7 @@ function build3DWeapon() {
         gunGroup.add(wpnClone);
         currentWeaponModel = wpnClone;
     } else {
-        // Placeholder exibido enquanto o download na internet não termina
+        // Placeholder cinza provisório
         const placeholder = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.5), new THREE.MeshBasicMaterial({color: 0x555555}));
         placeholder.position.copy(config.pos);
         gunGroup.add(placeholder);
@@ -330,6 +330,25 @@ function setupEvents() {
     });
 }
 
+// RESTAURAÇÃO DA FUNÇÃO DO MENU DE COMPRA
+function setupBuyMenuEvents() {
+    ['deagle', 'p90', 'ak47', 'm4a4', 'awp'].forEach(w => {
+        const btn = document.getElementById(`buy-${w}`);
+        if (btn) {
+            btn.onclick = () => {
+                const item = itemsConfig[w];
+                if (playerMoney >= item.price) {
+                    playerMoney -= item.price;
+                    inventory[item.slot] = { key: w, ammo: item.maxAmmo, reserveAmmo: item.totalAmmo };
+                    activeSlot = item.slot;
+                    build3DWeapon(); 
+                    updateHUD();
+                }
+            };
+        }
+    });
+}
+
 if (!window.debugSpawn) {
     window.debugSpawn = true;
     document.addEventListener("keydown", (e) => {
@@ -375,10 +394,9 @@ function animate() {
         if (time > 1000) {
             for (let box of collidables) {
                 if (playerBox.intersectsBox(box)) {
-                    // FIX DA FLUTUAÇÃO: Calcula a distância entre o seu pé e o topo do obstáculo
+                    // CÁLCULO DE COLISÃO CORRIGIDO
                     const distToTop = box.max.y - (camera.position.y - 0.9);
                     
-                    // Só te empurra pro topo se for um "degrau/chão" (distância pequena), não uma parede gigante
                     if (velocity.y < 0 && distToTop >= 0 && distToTop < 1.5) {
                         proposedPos.y = box.max.y + 0.9; 
                         velocity.y = 0;
