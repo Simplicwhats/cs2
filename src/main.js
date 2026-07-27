@@ -364,25 +364,37 @@ function animate() {
         if (moveL) velocity.addScaledVector(camRight, -speed * delta);
         if (moveR) velocity.addScaledVector(camRight, speed * delta);
 
-        const oldPos = camera.position.clone();
-        camera.position.x += velocity.x * delta; camera.position.z += velocity.z * delta;
-        
+       const oldPos = camera.position.clone();
+        camera.position.x += velocity.x * delta; 
+        camera.position.z += velocity.z * delta;
         camera.position.y += velocity.y * delta;
-        if (camera.position.y < -30) { 
-            camera.position.set(0, 20, 0); 
-            velocity.set(0, 0, 0);
-        }
 
+        // Atualiza a caixa de colisão do jogador
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
 
-        if (time > 1500) {
+        // Checagem de colisão total (Paredes E Chão)
+        if (time > 1000) {
             for (let box of collidables) {
-                if (playerBox.intersectsBox(box)) { 
-                    camera.position.x = oldPos.x; 
-                    camera.position.z = oldPos.z; 
+                if (playerBox.intersectsBox(box)) {
+                    // Se estiver caindo e bater em cima de uma caixa, aterrissa nela
+                    if (velocity.y < 0 && oldPos.y >= box.max.y) {
+                        camera.position.y = box.max.y + 0.9; // Mantém em cima do piso
+                        velocity.y = 0;
+                        canJump = true;
+                    } else {
+                        // Colisão com paredes normais
+                        camera.position.x = oldPos.x; 
+                        camera.position.z = oldPos.z; 
+                    }
                     break; 
                 }
             }
+        }
+
+        // Segurança contra queda infinita no void
+        if (camera.position.y < -30) { 
+            camera.position.set(0, 15, 0); 
+            velocity.set(0, 0, 0);
         }
     
         if (cameraEuler.x > 0 && !isMouseDown) { 
