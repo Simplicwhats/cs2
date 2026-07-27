@@ -46,11 +46,11 @@ const buyMenu = document.getElementById('buy-menu');
 const crosshairElem = document.getElementById('crosshair');
 const scopeOverlay = document.getElementById('scope-overlay');
 const weaponScales = {
-    deagle: { scale: 0.03, pos: new THREE.Vector3(0.2, -0.25, -0.4) },
-    p90:    { scale: 0.035, pos: new THREE.Vector3(0.2, -0.25, -0.4) },
-    ak47:   { scale: 0.04, pos: new THREE.Vector3(0.2, -0.25, -0.4) },
-    m4a4:   { scale: 0.04, pos: new THREE.Vector3(0.2, -0.25, -0.4) },
-    awp:    { scale: 0.045, pos: new THREE.Vector3(0.2, -0.25, -0.4) }
+    deagle: { scale: 0.08, pos: new THREE.Vector3(0.15, -0.2, -0.35) },
+    p90:    { scale: 0.015, pos: new THREE.Vector3(0.15, -0.2, -0.35) },
+    ak47:   { scale: 0.02,  pos: new THREE.Vector3(0.15, -0.2, -0.35) },
+    m4a4:   { scale: 0.02,  pos: new THREE.Vector3(0.15, -0.2, -0.35) },
+    awp:    { scale: 0.045, pos: new THREE.Vector3(0.15, -0.2, -0.35) }
 };
 
 // 1. CARREGAMENTO PRÉVIO DAS ARMAS
@@ -58,14 +58,7 @@ function preloadWeapons() {
     const weaponsToLoad = ['ak47', 'm4a4', 'awp', 'deagle', 'p90'];
     weaponsToLoad.forEach(w => {
         gltfLoader.load(`models/${w}.glb`, (gltf) => {
-            const mesh = gltf.scene;
-            const config = weaponScales[w] || { scale: 0.05, pos: new THREE.Vector3(0.2, -0.25, -0.4) };
-
-            mesh.scale.set(config.scale, config.scale, config.scale); 
-            mesh.position.copy(config.pos); 
-            mesh.rotation.set(0, Math.PI, 0); 
-
-            loadedWeapons[w] = mesh;
+            loadedWeapons[w] = gltf.scene; // Guarda apenas o modelo puro base
         });
     });
 }
@@ -107,30 +100,39 @@ function updateCrosshairAndScope() {
 function build3DWeapon() {
     if (!gunGroup) return;
     
-    while(gunGroup.children.length > 0) gunGroup.remove(gunGroup.children[0]);
+    // Limpa a mão do jogador
+    while(gunGroup.children.length > 0) {
+        gunGroup.remove(gunGroup.children[0]);
+    }
     currentWeaponModel = null;
     
     const curKey = getCurrentWeaponKey();
+    const config = weaponScales[curKey] || { scale: 0.03, pos: new THREE.Vector3(0.15, -0.2, -0.35) };
 
     if (activeSlot === 'grenade') {
         const nade = new THREE.Mesh(new THREE.SphereGeometry(0.08), new THREE.MeshStandardMaterial({color: 0x2e3d29}));
-        nade.position.set(0.2, -0.2, -0.3);
+        nade.position.copy(config.pos);
         gunGroup.add(nade);
         currentWeaponModel = nade;
     } else if (loadedWeapons[curKey]) {
-        const wpnClone = loadedWeapons[curKey].clone();
+        // Clona de forma limpa direto para dentro do grupo da câmera
+        const wpnClone = loadedWeapons[curKey].clone(true);
+        
+        wpnClone.scale.set(config.scale, config.scale, config.scale); 
+        wpnClone.position.copy(config.pos); 
+        wpnClone.rotation.set(0, Math.PI, 0); 
+
         gunGroup.add(wpnClone);
         currentWeaponModel = wpnClone;
     } else {
         const placeholder = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.1, 0.5), new THREE.MeshBasicMaterial({color: 0x555555}));
-        placeholder.position.set(0.2, -0.2, -0.3);
+        placeholder.position.copy(config.pos);
         gunGroup.add(placeholder);
         currentWeaponModel = placeholder;
     }
 
     updateCrosshairAndScope();
 }
-
 function updateHUD() {
     const curKey = getCurrentWeaponKey();
     const curData = itemsConfig[curKey] || itemsConfig.deagle;
