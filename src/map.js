@@ -32,11 +32,7 @@ export function buildMapGeometries(scene) {
             const mapBox = new THREE.Box3().setFromObject(mapModel);
 
             // Spawn automático um pouco acima do piso
-            mapSpawnPoint.set(
-    -1.42,
-    -2,
-    -6.71
-);
+            mapSpawnPoint.set(28.33, -4.14, 24.17);
 
             // Piso invisível
             const floor = new THREE.Mesh(
