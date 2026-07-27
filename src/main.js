@@ -21,7 +21,7 @@ let lastShotTime = 0, isAiming = false, pointerLocked = false, buyMenuOpen = fal
 let scene, camera, renderer, composer, prevTime = performance.now();
 let moveF = false, moveB = false, moveL = false, moveR = false, canJump = true;
 let isRunning = false, isCrouching = false;
-let velocity = new THREE.Vector3(), currentHeight = 1.8;
+let velocity = new THREE.Vector3(), currentHeight = 25.0;
 let hp = 100, isDead = false;
 
 // Sistema 3D de armas
@@ -385,8 +385,11 @@ if (mapSpawnPoint && camera.position.y === 1.8 && mapSpawnPoint.y !== 5) {
         
         // Simples gravidade para andar no chão lido do modelo 3D
         camera.position.y += velocity.y * delta;
-        if (camera.position.y < currentHeight) { camera.position.y = currentHeight; velocity.y = 0; canJump = true; }
-
+// Se cair abaixo de um limite seguro (ex: -20), ele resgata você para cima
+if (camera.position.y < -20) { 
+    camera.position.set(-1.42, 25.0, -6.71); 
+    velocity.y = 0; 
+}
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
         for (let box of collidables) {
             if (playerBox.intersectsBox(box)) { camera.position.x = oldPos.x; camera.position.z = oldPos.z; break; }
