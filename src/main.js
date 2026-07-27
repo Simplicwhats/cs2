@@ -373,6 +373,7 @@ if (!window.debugSpawn) {
     // Aplica o spawn do mapa configurado no map.js assim que ele carrega
     if (mapLoaded && mapSpawnPoint && !window.spawnApplied) {
         camera.position.copy(mapSpawnPoint);
+        velocity.set(0, 0, 0); // Zera a velocidade para não bugar a queda
         window.spawnApplied = true;
     }
 
