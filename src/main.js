@@ -45,6 +45,13 @@ const pauseScreen = document.getElementById('pause-screen');
 const buyMenu = document.getElementById('buy-menu');
 const crosshairElem = document.getElementById('crosshair');
 const scopeOverlay = document.getElementById('scope-overlay');
+const weaponScales = {
+    deagle: { scale: 0.03, pos: new THREE.Vector3(0.2, -0.25, -0.4) },
+    p90:    { scale: 0.035, pos: new THREE.Vector3(0.2, -0.25, -0.4) },
+    ak47:   { scale: 0.04, pos: new THREE.Vector3(0.2, -0.25, -0.4) },
+    m4a4:   { scale: 0.04, pos: new THREE.Vector3(0.2, -0.25, -0.4) },
+    awp:    { scale: 0.045, pos: new THREE.Vector3(0.2, -0.25, -0.4) }
+};
 
 // 1. CARREGAMENTO PRÉVIO DAS ARMAS
 function preloadWeapons() {
@@ -52,9 +59,10 @@ function preloadWeapons() {
     weaponsToLoad.forEach(w => {
         gltfLoader.load(`models/${w}.glb`, (gltf) => {
             const mesh = gltf.scene;
+            const config = weaponScales[w] || { scale: 0.05, pos: new THREE.Vector3(0.2, -0.25, -0.4) };
 
-            mesh.scale.set(0.05, 0.05, 0.05); 
-            mesh.position.set(0.2, -0.25, -0.4); 
+            mesh.scale.set(config.scale, config.scale, config.scale); 
+            mesh.position.copy(config.pos); 
             mesh.rotation.set(0, Math.PI, 0); 
 
             loadedWeapons[w] = mesh;
