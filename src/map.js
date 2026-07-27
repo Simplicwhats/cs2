@@ -34,7 +34,7 @@ export function buildMapGeometries(scene) {
             // Spawn automático um pouco acima do piso
             mapSpawnPoint.set(
     -1.42,
-    2,
+    1,
     -6.71
 );
 
