@@ -6,11 +6,10 @@ export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false;
 
-// Altura perfeita que você descobriu (Y = 9.14) com X e Z do seu spawn
-export let mapSpawnPoint = new THREE.Vector3(28.33, -8.14, 24.17);
+// Spawn ajustado: Y = 2.0 força você a nascer "caindo" levemente no chão para fixar a colisão
+export let mapSpawnPoint = new THREE.Vector3(28.33, 2.0, 24.17); 
 
 export function buildMapGeometries(scene) {
-
     collidables.length = 0;
     wallMeshes.length = 0;
     mapWallMeshes.length = 0;
@@ -26,28 +25,28 @@ export function buildMapGeometries(scene) {
             mapModel.position.set(0, 0, 0);
             mapModel.rotation.set(0, 0, 0);
             mapModel.scale.set(1, 1, 1);
+            
+            mapModel.updateMatrixWorld(true);
 
             const mapBox = new THREE.Box3().setFromObject(mapModel);
 
-            // CRIAÇÃO DE UM PISO SÓLIDO INVISÍVEL EXATAMENTE ABAIXO DOS SEUS PÉS (Y = 9.14)
-            // Subtraímos um pouco no Y para que a caixa de colisão fique perfeitamente alinhada como o chão
+            // Piso de segurança GIGANTE logo abaixo do mapa para evitar o "void"
             const solidFloor = new THREE.Mesh(
-                new THREE.BoxGeometry(
-                    mapBox.max.x - mapBox.min.x + 200,
-                    2, // Espessura do piso
-                    mapBox.max.z - mapBox.min.z + 200
-                ),
-                new THREE.MeshBasicMaterial({ visible: false }) // Invisível, mas sólido
+                new THREE.BoxGeometry(2000, 5, 2000), 
+                new THREE.MeshBasicMaterial({ visible: false })
             );
 
-            // Posiciona o piso invisível exatamente logo abaixo de Y = 9.14 (ex: em Y = 8.5 ou 9.0)
+            // Posiciona o piso exatamente no limite inferior do modelo 3D
             solidFloor.position.set(
                 mapBox.getCenter(new THREE.Vector3()).x,
-                -9.15, // <-- Altura exata calculada para o seu pé bater e parar
+                mapBox.min.y - 2.5, // Centraliza a espessura de 5 unidades do piso
                 mapBox.getCenter(new THREE.Vector3()).z
             );
-
+            
+            solidFloor.updateMatrixWorld(true);
             scene.add(solidFloor);
+            
+            // Adiciona o chão de segurança nas colisões
             collidables.push(new THREE.Box3().setFromObject(solidFloor));
 
             mapModel.traverse((child) => {
@@ -60,8 +59,6 @@ export function buildMapGeometries(scene) {
                 mapWallMeshes.push(child);
 
                 const box = new THREE.Box3().setFromObject(child);
-
-                // Adiciona colisão nas paredes e outros objetos, ignorando tetos muito altos
                 if (box.min.y < mapBox.min.y + 12) {
                     collidables.push(box);
                 }
@@ -69,8 +66,7 @@ export function buildMapGeometries(scene) {
 
             scene.add(mapModel);
             mapLoaded = true;
-
-            console.log("Mapa carregado. Piso sólido forçado criado com sucesso.");
+            console.log("Mapa carregado. Piso sólido de segurança ativado.");
         },
         undefined,
         (err) => {
@@ -78,4 +74,3 @@ export function buildMapGeometries(scene) {
         }
     );
 }
-
