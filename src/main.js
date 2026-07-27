@@ -175,14 +175,18 @@ function initGameEngine() {
 
     setTimeout(build3DWeapon, 1000); // Dá 1 seg para os GLB carregarem
 
-    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    
     container.innerHTML = '';
-    container.style.display = 'block'; // <--- ADICIONE ESTA LINHA AQUI!
+    container.style.display = 'block'; 
     container.style.position = 'absolute';
     container.style.top = '0';
     container.style.left = '0';
+    
+    // >>> ADICIONE ESTA LINHA ABAIXO PARA O CANVAS APARECER NA TELA <<<
+    container.appendChild(renderer.domElement);
     
     const renderScene = new RenderPass(scene, camera);
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.25, 0.4, 0.85);
