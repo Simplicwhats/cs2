@@ -6,7 +6,7 @@ export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false; 
 
-export let mapSpawnPoint = new THREE.Vector3(0, 15, 0);
+export let mapSpawnPoint = new THREE.Vector3(10, 4, 0);
 
 export function buildMapGeometries(scene) {
     collidables.length = 0; 
