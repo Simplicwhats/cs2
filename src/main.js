@@ -3,6 +3,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js'; // FIX DA AK-47
 import { itemsConfig, safeSpawns } from './config.js';
 import { playShootSound, playExplosionSound, playReloadSound } from './audio.js';
 import { buildMapGeometries, collidables, wallMeshes, mapWallMeshes, mapSpawnPoint, mapLoaded } from './map.js';
@@ -24,9 +25,8 @@ let isRunning = false, isCrouching = false;
 let velocity = new THREE.Vector3();
 let hp = 100, isDead = false;
 
-// Sistema 3D de armas
 let gunGroup;
-let loadedWeapons = {}; // Cache de modelos 3D
+let loadedWeapons = {}; 
 let currentWeaponModel = null;
 const gltfLoader = new GLTFLoader();
 
@@ -34,7 +34,6 @@ let activeGrenades = [], tracers = [], bots = [], networkPlayers = {}, playerSco
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 let playerBox = new THREE.Box3();
 
-// Multiplayer PeerJS Robusto (Compatível com GitHub Pages HTTPS)
 let peer, conn;
 let peers = {};
 let isHost = false;
@@ -45,27 +44,33 @@ const pauseScreen = document.getElementById('pause-screen');
 const buyMenu = document.getElementById('buy-menu');
 const crosshairElem = document.getElementById('crosshair');
 const scopeOverlay = document.getElementById('scope-overlay');
+
+// FIX: Escalas das armas ajustadas com base no seu feedback
 const weaponScales = {
-    deagle: { scale: 0.08, pos: new THREE.Vector3(0.15, -0.2, -0.35) },
-    p90:    { scale: 0.015, pos: new THREE.Vector3(0.15, -0.2, -0.35) },
-    ak47:   { scale: 0.02,  pos: new THREE.Vector3(0.15, -0.2, -0.35) },
-    m4a4:   { scale: 0.02,  pos: new THREE.Vector3(0.15, -0.2, -0.35) },
-    awp:    { scale: 0.045, pos: new THREE.Vector3(0.15, -0.2, -0.35) }
+    deagle: { scale: 0.15,  pos: new THREE.Vector3(0.15, -0.2, -0.35) }, // Aumentado
+    p90:    { scale: 0.005, pos: new THREE.Vector3(0.15, -0.2, -0.35) }, // Diminuído drasticamente
+    ak47:   { scale: 0.035, pos: new THREE.Vector3(0.15, -0.2, -0.35) }, // Ajustado
+    m4a4:   { scale: 0.05,  pos: new THREE.Vector3(0.15, -0.2, -0.35) }, // Aumentado
+    awp:    { scale: 0.045, pos: new THREE.Vector3(0.15, -0.2, -0.35) }  // Mantido (Ficou bom)
 };
 
-// 1. CARREGAMENTO PRÉVIO DAS ARMAS
 function preloadWeapons() {
     const weaponsToLoad = ['ak47', 'm4a4', 'awp', 'deagle', 'p90'];
     weaponsToLoad.forEach(w => {
         gltfLoader.load(`models/${w}.glb`, (gltf) => {
-            loadedWeapons[w] = gltf.scene; // Guarda apenas o modelo puro base
+            const model = gltf.scene;
+            model.traverse((child) => {
+                if (child.isMesh && child.material) {
+                    child.material.needsUpdate = true;
+                }
+            });
+            loadedWeapons[w] = model; 
         });
     });
 }
 
 function getCurrentWeaponKey() { return inventory[activeSlot] ? inventory[activeSlot].key : 'deagle'; }
 
-// 2. LÓGICA DAS MIRAS DINÂMICAS E SCOPE
 function updateCrosshairAndScope() {
     const curKey = getCurrentWeaponKey();
     
@@ -74,11 +79,6 @@ function updateCrosshairAndScope() {
         scopeOverlay.style.display = 'block';
         if (currentWeaponModel) currentWeaponModel.visible = false;
         camera.fov = 20; 
-    } else if (curKey === 'awp' && !isAiming) {
-        crosshairElem.style.display = 'none';
-        scopeOverlay.style.display = 'none';
-        if (currentWeaponModel) currentWeaponModel.visible = true;
-        camera.fov = 78;
     } else {
         scopeOverlay.style.display = 'none';
         crosshairElem.style.display = 'block';
@@ -92,15 +92,12 @@ function updateCrosshairAndScope() {
         
         camera.fov = (isAiming && itemsConfig[curKey].zoomFov) ? itemsConfig[curKey].zoomFov : 78;
     }
-    
     camera.updateProjectionMatrix();
 }
 
-// 3. TROCA DE MODELO 3D NA MÃO
 function build3DWeapon() {
     if (!gunGroup) return;
     
-    // Limpa a mão do jogador
     while(gunGroup.children.length > 0) {
         gunGroup.remove(gunGroup.children[0]);
     }
@@ -115,13 +112,11 @@ function build3DWeapon() {
         gunGroup.add(nade);
         currentWeaponModel = nade;
     } else if (loadedWeapons[curKey]) {
-        // Clona de forma limpa direto para dentro do grupo da câmera
-        const wpnClone = loadedWeapons[curKey].clone(true);
-        
+        // FIX AK-47: Usando SkeletonUtils para garantir que ossos/animações venham para a mão do jogador
+        const wpnClone = SkeletonUtils.clone(loadedWeapons[curKey]);
         wpnClone.scale.set(config.scale, config.scale, config.scale); 
         wpnClone.position.copy(config.pos); 
         wpnClone.rotation.set(0, Math.PI, 0); 
-
         gunGroup.add(wpnClone);
         currentWeaponModel = wpnClone;
     } else {
@@ -130,9 +125,9 @@ function build3DWeapon() {
         gunGroup.add(placeholder);
         currentWeaponModel = placeholder;
     }
-
     updateCrosshairAndScope();
 }
+
 function updateHUD() {
     const curKey = getCurrentWeaponKey();
     const curData = itemsConfig[curKey] || itemsConfig.deagle;
@@ -165,7 +160,9 @@ function initGameEngine() {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
     const dirLight = new THREE.DirectionalLight(0xffffff, 2.5); 
     dirLight.position.set(120, 200, 90); 
-    scene.add(hemiLight, dirLight);
+    
+    const ambientLight = new THREE.AmbientLight(0x404040, 1.5); 
+    scene.add(hemiLight, dirLight, ambientLight);
 
     buildMapGeometries(scene);
 
@@ -198,17 +195,11 @@ function initGameEngine() {
     if (gameMode === 'online') initMultiplayer();
 }
 
-// 4. FIX DO MULTIPLAYER (FORÇANDO HTTPS E PORTA 443 PARA GITHUB PAGES)
 function initMultiplayer() {
     const roomId = document.getElementById('room-id').value || "dust2-server";
     const myId = playerNick + "_" + Math.floor(Math.random() * 10000);
     
-    peer = new Peer(myId, {
-        host: '0.peerjs.com',
-        port: 443,
-        secure: true,
-        debug: 1
-    });
+    peer = new Peer(myId, { host: '0.peerjs.com', port: 443, secure: true, debug: 1 });
 
     peer.on('open', (id) => {
         document.getElementById('kill-feed').innerText = "Buscando servidor...";
@@ -347,33 +338,23 @@ function setupBuyMenuEvents() {
     });
 }
 
+if (!window.debugSpawn) {
+    window.debugSpawn = true;
+    document.addEventListener("keydown", (e) => {
+        if (e.code === "F8") {
+            console.clear();
+            console.log(`mapSpawnPoint.set(${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)});`);
+        }
+    });
+}
+
 function animate() {
     requestAnimationFrame(animate);
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
-// F8 = mostra a posição atual do jogador
-if (!window.debugSpawn) {
 
-    window.debugSpawn = true;
-
-    document.addEventListener("keydown", (e) => {
-
-        if (e.code === "F8") {
-
-            console.clear();
-
-            console.log(
-                `mapSpawnPoint.set(${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)});`
-            );
-
-        }
-
-    });
-
-}
-    // Aplica o spawn do mapa configurado no map.js assim que ele carrega
     if (mapLoaded && mapSpawnPoint && !window.spawnApplied) {
         camera.position.copy(mapSpawnPoint);
-        velocity.set(0, 0, 0); // Zera a velocidade para não bugar a queda
+        velocity.set(0, 0, 0); 
         window.spawnApplied = true;
     }
 
@@ -386,45 +367,48 @@ if (!window.debugSpawn) {
         velocity.x -= velocity.x * 10.0 * delta; velocity.z -= velocity.z * 10.0 * delta; velocity.y -= 9.8 * 4.2 * delta;
 
         let speed = isRunning ? 115 : 68;
-        if (moveF) velocity.addScaledVector(camDir, speed * delta);
-        if (moveB) velocity.addScaledVector(camDir, -speed * delta);
-        if (moveL) velocity.addScaledVector(camRight, -speed * delta);
-        if (moveR) velocity.addScaledVector(camRight, speed * delta);
+        
+        const proposedPos = camera.position.clone();
+        if (moveF) { proposedPos.x += camDir.x * speed * delta; proposedPos.z += camDir.z * speed * delta; }
+        if (moveB) { proposedPos.x -= camDir.x * speed * delta; proposedPos.z -= camDir.z * speed * delta; }
+        if (moveL) { proposedPos.x -= camRight.x * speed * delta; proposedPos.z -= camRight.z * speed * delta; }
+        if (moveR) { proposedPos.x += camRight.x * speed * delta; proposedPos.z += camRight.z * speed * delta; }
+        
+        proposedPos.y += velocity.y * delta;
 
-        const oldPos = camera.position.clone();
-        camera.position.x += velocity.x * delta; 
-        camera.position.z += velocity.z * delta;
-        camera.position.y += velocity.y * delta;
-
-        playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(0.6, 1.8, 0.6));
+        // FIX COLLISION MAT: A caixa de colisão do jogador tem altura 1.8. O "pé" fica em Y - 0.9.
+        playerBox.setFromCenterAndSize(proposedPos, new THREE.Vector3(0.6, 1.8, 0.6));
+        
+        let canMoveX = true, canMoveZ = true;
 
         if (time > 1000) {
             for (let box of collidables) {
                 if (playerBox.intersectsBox(box)) {
-                    // Se estiver caindo e tocar em cima de um bloco/piso, aterrissa nele
-                    if (velocity.y < 0 && oldPos.y >= box.max.y - 0.2) {
-                        camera.position.y = box.max.y + 0.9; 
+                    // Impede o jogador de cair infinitamente através do chão
+                    if (velocity.y < 0 && (camera.position.y - 0.9) >= box.max.y - 0.5) {
+                        proposedPos.y = box.max.y + 0.9; 
                         velocity.y = 0;
                         canJump = true;
-                        break;
-                    } 
-                    // Se estiver subindo/pulando, IGNORA o teto completamente para nunca prender lá em cima
-                    else if (velocity.y > 0) {
-                        // Não faz nada, deixa passar direto pelo teto
-                    } 
-                    else {
-                        // Colisão apenas com paredes nas laterais
-                        camera.position.x = oldPos.x; 
-                        camera.position.z = oldPos.z; 
-                        break; 
+                    } else if (velocity.y > 0 && camera.position.y <= box.min.y) {
+                        velocity.y = -1;
+                    } else {
+                        const testBoxX = new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(proposedPos.x, camera.position.y, camera.position.z), new THREE.Vector3(0.6, 1.8, 0.6));
+                        if (testBoxX.intersectsBox(box)) canMoveX = false;
+                        
+                        const testBoxZ = new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(camera.position.x, camera.position.y, proposedPos.z), new THREE.Vector3(0.6, 1.8, 0.6));
+                        if (testBoxZ.intersectsBox(box)) canMoveZ = false;
                     }
                 }
             }
         }
 
-        // Segurança caso caia no void
-        if (camera.position.y < -30) { 
-            camera.position.copy(mapSpawnPoint || new THREE.Vector3(0, 15, 0)); 
+        if (canMoveX) camera.position.x = proposedPos.x;
+        if (canMoveZ) camera.position.z = proposedPos.z;
+        camera.position.y = proposedPos.y;
+
+        // Limite máximo de queda (caso tudo dê errado)
+        if (camera.position.y < mapSpawnPoint.y - 50) { 
+            camera.position.copy(mapSpawnPoint); 
             velocity.set(0, 0, 0);
         }
     
@@ -445,11 +429,10 @@ btnStart.addEventListener('click', () => {
     gameMode = document.querySelector('.mode-btn.active').id === 'mode-bot' ? 'bot' : 'online';
     document.getElementById('lobby-container').style.display = 'none';
     
-    window.spawnApplied = false; // Permite aplicar o novo spawn do mapa
+    window.spawnApplied = false; 
     initGameEngine();
     
     velocity.set(0, 0, 0);
-
     updateHUD(); animate();
     document.body.requestPointerLock();
 });
