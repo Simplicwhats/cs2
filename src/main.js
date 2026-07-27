@@ -405,6 +405,15 @@ btnStart.addEventListener('click', () => {
     gameMode = document.querySelector('.mode-btn.active').id === 'mode-bot' ? 'bot' : 'online';
     document.getElementById('lobby-container').style.display = 'none';
     initGameEngine();
+    
+    // >>> FORÇA A POSIÇÃO IMEDIATAMENTE E TAMBÉM APÓS 0.5 SEGUNDOS PARA ANULAR QUALQUER BUG <<<
+    camera.position.set(-1.42, 25.0, -6.71);
+    velocity.set(0, 0, 0);
+    setTimeout(() => {
+        camera.position.set(-1.42, 25.0, -6.71);
+        velocity.set(0, 0, 0);
+    }, 500);
+
     updateHUD(); animate();
     document.body.requestPointerLock();
 });
