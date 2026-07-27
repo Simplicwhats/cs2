@@ -374,23 +374,23 @@ function animate() {
         if (time > 1000) {
             for (let box of collidables) {
                 if (playerBox.intersectsBox(box)) {
-                    // Verifica se o jogador está caindo e os pés estão acima ou na linha do topo da caixa
-                    if (velocity.y < 0 && oldPos.y - 0.9 >= box.max.y - 0.4) {
-                        camera.position.y = box.max.y + 0.9; // Pousa perfeitamente em cima do piso
+                    // Se estiver caindo e tocar em cima de um bloco/piso, aterrissa nele
+                    if (velocity.y < 0 && oldPos.y >= box.max.y - 0.2) {
+                        camera.position.y = box.max.y + 0.9; 
                         velocity.y = 0;
                         canJump = true;
+                        break;
                     } 
-                    // Se for o teto (batendo por baixo), apenas cessa a velocidade de subida
-                    else if (velocity.y > 0 && oldPos.y + 0.9 <= box.min.y + 0.4) {
-                        camera.position.y = box.min.y - 0.9;
-                        velocity.y = 0;
+                    // Se estiver subindo/pulando, IGNORA o teto completamente para nunca prender lá em cima
+                    else if (velocity.y > 0) {
+                        // Não faz nada, deixa passar direto pelo teto
                     } 
                     else {
-                        // Colisão horizontal padrão (Paredes)
+                        // Colisão apenas com paredes nas laterais
                         camera.position.x = oldPos.x; 
                         camera.position.z = oldPos.z; 
+                        break; 
                     }
-                    break; 
                 }
             }
         }
