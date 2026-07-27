@@ -6,8 +6,8 @@ export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false;
 
-// Spawn ajustado: Y = 2.0 força você a nascer "caindo" levemente no chão para fixar a colisão
-export let mapSpawnPoint = new THREE.Vector3(28.33, 2.0, 24.17); 
+// Spawn restaurado para o Y negativo baseado nos seus testes
+export let mapSpawnPoint = new THREE.Vector3(28.33, -7.0, 24.17); 
 
 export function buildMapGeometries(scene) {
     collidables.length = 0;
@@ -30,27 +30,29 @@ export function buildMapGeometries(scene) {
 
             const mapBox = new THREE.Box3().setFromObject(mapModel);
 
-            // Piso de segurança GIGANTE logo abaixo do mapa para evitar o "void"
+            // Piso sólido de segurança (calcula automaticamente baseado no fundo do mapa)
             const solidFloor = new THREE.Mesh(
                 new THREE.BoxGeometry(2000, 5, 2000), 
                 new THREE.MeshBasicMaterial({ visible: false })
             );
 
-            // Posiciona o piso exatamente no limite inferior do modelo 3D
             solidFloor.position.set(
                 mapBox.getCenter(new THREE.Vector3()).x,
-                mapBox.min.y - 2.5, // Centraliza a espessura de 5 unidades do piso
+                mapBox.min.y - 2.5,
                 mapBox.getCenter(new THREE.Vector3()).z
             );
             
             solidFloor.updateMatrixWorld(true);
             scene.add(solidFloor);
             
-            // Adiciona o chão de segurança nas colisões
             collidables.push(new THREE.Box3().setFromObject(solidFloor));
 
             mapModel.traverse((child) => {
                 if (!child.isMesh) return;
+
+                // Ignora malhas de céu ou barreiras gigantes
+                const objName = child.name.toLowerCase();
+                if (objName.includes('sky') || objName.includes('barrier')) return;
 
                 child.castShadow = true;
                 child.receiveShadow = true;
@@ -59,14 +61,17 @@ export function buildMapGeometries(scene) {
                 mapWallMeshes.push(child);
 
                 const box = new THREE.Box3().setFromObject(child);
-                if (box.min.y < mapBox.min.y + 12) {
+                
+                // Filtra tetos e paredes colossais para não bugar a colisão do jogador
+                const height = box.max.y - box.min.y;
+                if (height < 30) {
                     collidables.push(box);
                 }
             });
 
             scene.add(mapModel);
             mapLoaded = true;
-            console.log("Mapa carregado. Piso sólido de segurança ativado.");
+            console.log("Mapa carregado. Colisões ativas e spawn ajustado para Y negativo.");
         },
         undefined,
         (err) => {
