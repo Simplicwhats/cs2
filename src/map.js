@@ -6,7 +6,7 @@ export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false; 
 
-export let mapSpawnPoint = new THREE.Vector3(25, 20, 0);
+export let mapSpawnPoint = new THREE.Vector3(0, 2, 0);
 
 export function buildMapGeometries(scene) {
     collidables.length = 0; 
@@ -22,7 +22,7 @@ export function buildMapGeometries(scene) {
         mapModel.scale.set(1, 1, 1); 
         mapModel.position.set(0, 0, 0);
         
-        mapSpawnPoint.set(0, 15, 0);
+        mapSpawnPoint.set(0, 2, 0);
 
         // 1. Cria um piso sólido de segurança na base (Y = 0)
         const floorGeo = new THREE.BoxGeometry(300, 1, 300);
