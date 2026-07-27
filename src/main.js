@@ -66,7 +66,8 @@ function preloadWeapons() {
     });
 }
 function getSafeSpawn() { 
-    return mapSpawnPoint.clone(); 
+    // Coordenada manual forçada bem no meio e alta o suficiente para você cair no chão do mapa
+    return new THREE.Vector3(-1.42, 15.0, -6.71); 
 }
 function getCurrentWeaponKey() { return inventory[activeSlot] ? inventory[activeSlot].key : 'deagle'; }
 
