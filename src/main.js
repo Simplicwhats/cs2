@@ -28,7 +28,7 @@ let hp = 100, isDead = false;
 let gunGroup;
 let loadedWeapons = {}; 
 let currentWeaponModel = null;
-let mixer = null; // Mixer do Three.js para as animações
+let mixer = null; 
 const gltfLoader = new GLTFLoader();
 
 let activeGrenades = [], tracers = [], bots = [], networkPlayers = {}, playerScores = {}; 
@@ -66,7 +66,6 @@ function preloadWeapons() {
                 }
             });
             
-            // Salva o modelo e as animações embutidas
             loadedWeapons[w] = {
                 scene: model,
                 animations: gltf.animations
@@ -133,20 +132,18 @@ function build3DWeapon() {
         gunGroup.add(wpnClone);
         currentWeaponModel = wpnClone;
 
-        // Configura o Mixer, mas NÃO deixa em loop infinito
+        // Configura o mixer com duração ajustada (2.2s) e sem loop infinito
         if (weaponData.animations && weaponData.animations.length > 0) {
-    mixer = new THREE.AnimationMixer(wpnClone);
-    const clip = weaponData.animations[0];
-    const action = mixer.clipAction(clip);
-    
-    action.setLoop(THREE.LoopOnce, 1);
-    action.clampWhenFinished = true;
-    
-    // LIMITA O TEMPO: Se a animação tiver mais de 1.2 segundos, corta ela aqui
-    action.setDuration(1.2); 
-    
-    action.play();
-}
+            mixer = new THREE.AnimationMixer(wpnClone);
+            const action = mixer.clipAction(weaponData.animations[0]);
+            
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = true;
+            action.setDuration(2.2); // Duração ideal para a animação não ficar rápida demais nem lenta
+            
+            // Descomente a linha abaixo se quiser que a animação toque logo ao equipar a arma:
+            // action.play();
+        }
     } else {
         const placeholder = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.6), new THREE.MeshBasicMaterial({color: 0x555555}));
         placeholder.position.copy(config.pos);
@@ -155,6 +152,7 @@ function build3DWeapon() {
     }
     updateCrosshairAndScope();
 }
+
 function updateHUD() {
     const curKey = getCurrentWeaponKey();
     const curData = itemsConfig[curKey] || itemsConfig.deagle;
@@ -326,20 +324,21 @@ function setupEvents() {
             case 'Digit2': if (inventory.secondary) { activeSlot = 'secondary'; build3DWeapon(); updateHUD(); } break;
             case 'Space': if(canJump) { velocity.y = 8.5; canJump = false; } break;
             case 'KeyR': 
-    inventory[activeSlot].ammo = itemsConfig[getCurrentWeaponKey()].maxAmmo; 
-    updateHUD(); 
-    playReloadSound();
-    
-    // Toca a animação do GLB ao recarregar
-    if (mixer && loadedWeapons[getCurrentWeaponKey()]?.animations.length > 0) {
-        mixer.stopAllAction();
-        const action = mixer.clipAction(loadedWeapons[getCurrentWeaponKey()].animations[0]);
-        action.reset();
-        action.setLoop(THREE.LoopOnce, 1);
-        action.clampWhenFinished = true;
-        action.play();
-    }
-    break;
+                inventory[activeSlot].ammo = itemsConfig[getCurrentWeaponKey()].maxAmmo; 
+                updateHUD(); 
+                playReloadSound();
+                
+                // Toca a animação de recarga ao apertar R (com duração ajustada para 2.2s)
+                if (mixer && loadedWeapons[getCurrentWeaponKey()]?.animations.length > 0) {
+                    mixer.stopAllAction();
+                    const action = mixer.clipAction(loadedWeapons[getCurrentWeaponKey()].animations[0]);
+                    action.reset();
+                    action.setLoop(THREE.LoopOnce, 1);
+                    action.clampWhenFinished = true;
+                    action.setDuration(2.2);
+                    action.play();
+                }
+                break;
         }
     });
 
@@ -396,7 +395,6 @@ function animate() {
     requestAnimationFrame(animate);
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
 
-    // Atualiza o mixer de animação do modelo 3D
     if (mixer) mixer.update(delta);
 
     if (mapLoaded && mapSpawnPoint && !window.spawnApplied) {
