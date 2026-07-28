@@ -322,22 +322,24 @@ function setupEvents() {
             case 'Digit2': if (inventory.secondary) { activeSlot = 'secondary'; build3DWeapon(); updateHUD(); } break;
             case 'Space': if(canJump) { velocity.y = 8.5; canJump = false; } break;
             case 'KeyR': 
-                inventory[activeSlot].ammo = itemsConfig[getCurrentWeaponKey()].maxAmmo; 
-                updateHUD(); 
-                playReloadSound();
-                
-                // Toca a animação exatamente 1 vez de forma controlada ao recarregar
-                if (mixer && loadedWeapons[getCurrentWeaponKey()]?.animations.length > 0) {
-                    mixer.stopAllAction();
-                    const action = mixer.clipAction(loadedWeapons[getCurrentWeaponKey()].animations[0]);
-                    action.reset();
-                    action.setLoop(THREE.LoopOnce, 1);
-                    action.repetitions = 1;
-                    action.clampWhenFinished = true;
-                    action.setDuration(2.2);
-                    action.play();
-                }
-                break;
+    const curKey = getCurrentWeaponKey();
+    inventory[activeSlot].ammo = itemsConfig[curKey].maxAmmo; 
+    updateHUD(); 
+    
+    // Passa a arma atual para o som de reload correto
+    playReloadSound(curKey);
+    
+    if (mixer && loadedWeapons[curKey]?.animations.length > 0) {
+        mixer.stopAllAction();
+        const action = mixer.clipAction(loadedWeapons[curKey].animations[0]);
+        action.reset();
+        action.setLoop(THREE.LoopOnce, 1);
+        action.repetitions = 1;
+        action.clampWhenFinished = true;
+        action.setDuration(3.0);
+        action.play();
+    }
+    break;
         }
     });
 
