@@ -286,7 +286,7 @@ function shoot() {
     if (now - lastShotTime < cfg.fireRate) return;
 
     lastShotTime = now; inventory[activeSlot].ammo--; updateHUD();
-    playShootSound();
+    playShootSound(curKey);
 
     if(curKey !== 'awp') {
         crosshairElem.style.transform = "translate(-50%, -50%) scale(1.5)";
