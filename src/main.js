@@ -132,17 +132,15 @@ function build3DWeapon() {
         gunGroup.add(wpnClone);
         currentWeaponModel = wpnClone;
 
-        // Configura o mixer com duração ajustada (2.2s) e sem loop infinito
+        // Configura o mixer para a arma sem disparar sozinha ao equipar
         if (weaponData.animations && weaponData.animations.length > 0) {
             mixer = new THREE.AnimationMixer(wpnClone);
             const action = mixer.clipAction(weaponData.animations[0]);
             
             action.setLoop(THREE.LoopOnce, 1);
+            action.repetitions = 1;
             action.clampWhenFinished = true;
-            action.setDuration(2.2); // Duração ideal para a animação não ficar rápida demais nem lenta
-            
-            // Descomente a linha abaixo se quiser que a animação toque logo ao equipar a arma:
-            // action.play();
+            action.setDuration(2.2);
         }
     } else {
         const placeholder = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.6), new THREE.MeshBasicMaterial({color: 0x555555}));
@@ -328,12 +326,13 @@ function setupEvents() {
                 updateHUD(); 
                 playReloadSound();
                 
-                // Toca a animação de recarga ao apertar R (com duração ajustada para 2.2s)
+                // Toca a animação exatamente 1 vez de forma controlada ao recarregar
                 if (mixer && loadedWeapons[getCurrentWeaponKey()]?.animations.length > 0) {
                     mixer.stopAllAction();
                     const action = mixer.clipAction(loadedWeapons[getCurrentWeaponKey()].animations[0]);
                     action.reset();
                     action.setLoop(THREE.LoopOnce, 1);
+                    action.repetitions = 1;
                     action.clampWhenFinished = true;
                     action.setDuration(2.2);
                     action.play();
