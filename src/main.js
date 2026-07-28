@@ -114,7 +114,7 @@ function build3DWeapon() {
         gunGroup.remove(gunGroup.children[0]);
     }
     currentWeaponModel = null;
-    mixer = null; // Reseta o mixer ao trocar de arma
+    mixer = null; 
     
     const curKey = getCurrentWeaponKey();
     const config = weaponScales[curKey] || { scale: 0.008, pos: new THREE.Vector3(0, -0.15, -0.35) };
@@ -133,11 +133,17 @@ function build3DWeapon() {
         gunGroup.add(wpnClone);
         currentWeaponModel = wpnClone;
 
-        // Se houver animações no GLB, inicia o AnimationMixer
+        // Configura o Mixer, mas NÃO deixa em loop infinito
         if (weaponData.animations && weaponData.animations.length > 0) {
             mixer = new THREE.AnimationMixer(wpnClone);
             const action = mixer.clipAction(weaponData.animations[0]);
-            action.play();
+            
+            // Faz a animação tocar apenas uma vez e parar no último frame
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = true;
+            
+            // Se quiser que ela toque ao equipar a arma, descomente a linha abaixo:
+            // action.play();
         }
     } else {
         const placeholder = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.6), new THREE.MeshBasicMaterial({color: 0x555555}));
@@ -147,7 +153,6 @@ function build3DWeapon() {
     }
     updateCrosshairAndScope();
 }
-
 function updateHUD() {
     const curKey = getCurrentWeaponKey();
     const curData = itemsConfig[curKey] || itemsConfig.deagle;
@@ -318,7 +323,21 @@ function setupEvents() {
             case 'Digit1': if (inventory.primary) { activeSlot = 'primary'; build3DWeapon(); updateHUD(); } break;
             case 'Digit2': if (inventory.secondary) { activeSlot = 'secondary'; build3DWeapon(); updateHUD(); } break;
             case 'Space': if(canJump) { velocity.y = 8.5; canJump = false; } break;
-            case 'KeyR': inventory[activeSlot].ammo = itemsConfig[getCurrentWeaponKey()].maxAmmo; updateHUD(); break;
+            case 'KeyR': 
+    inventory[activeSlot].ammo = itemsConfig[getCurrentWeaponKey()].maxAmmo; 
+    updateHUD(); 
+    playReloadSound();
+    
+    // Toca a animação do GLB ao recarregar
+    if (mixer && loadedWeapons[getCurrentWeaponKey()]?.animations.length > 0) {
+        mixer.stopAllAction();
+        const action = mixer.clipAction(loadedWeapons[getCurrentWeaponKey()].animations[0]);
+        action.reset();
+        action.setLoop(THREE.LoopOnce, 1);
+        action.clampWhenFinished = true;
+        action.play();
+    }
+    break;
         }
     });
 
