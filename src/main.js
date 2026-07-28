@@ -135,16 +135,18 @@ function build3DWeapon() {
 
         // Configura o Mixer, mas NÃO deixa em loop infinito
         if (weaponData.animations && weaponData.animations.length > 0) {
-            mixer = new THREE.AnimationMixer(wpnClone);
-            const action = mixer.clipAction(weaponData.animations[0]);
-            
-            // Faz a animação tocar apenas uma vez e parar no último frame
-            action.setLoop(THREE.LoopOnce, 1);
-            action.clampWhenFinished = true;
-            
-            // Se quiser que ela toque ao equipar a arma, descomente a linha abaixo:
-            // action.play();
-        }
+    mixer = new THREE.AnimationMixer(wpnClone);
+    const clip = weaponData.animations[0];
+    const action = mixer.clipAction(clip);
+    
+    action.setLoop(THREE.LoopOnce, 1);
+    action.clampWhenFinished = true;
+    
+    // LIMITA O TEMPO: Se a animação tiver mais de 1.2 segundos, corta ela aqui
+    action.setDuration(1.2); 
+    
+    action.play();
+}
     } else {
         const placeholder = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.6), new THREE.MeshBasicMaterial({color: 0x555555}));
         placeholder.position.copy(config.pos);
