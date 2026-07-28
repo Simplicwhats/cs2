@@ -50,19 +50,21 @@ const scopeOverlay = document.getElementById('scope-overlay');
 const weaponScales = {
     deagle: { scale: 0.008, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
     
-    // Aumentamos um pouco mais para ela não ficar tão pequena
-    p90:    { scale: 0.045, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
+    p90:    { scale: 0.12,  pos: new THREE.Vector3(0, -0.15, -0.35) }, 
     
     ak47: { 
-        scale: 0.025, // Aumentada para sair do tamanho minúsculo
+        scale: 0.35, 
         pos: new THREE.Vector3(0, -0.15, -0.35), 
         rot: new THREE.Euler(0, 0, 0.1) 
     },
     
     m4a4:   { scale: 0.020, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
     
-    // Diminuímos bastante para a AWP gigante encaixar na tela
-    awp:    { scale: 0.005, pos: new THREE.Vector3(0, -0.15, -0.35) },  
+    awp:    { 
+        scale: 0.004, 
+        pos: new THREE.Vector3(0, -0.15, -0.35), 
+        rot: new THREE.Euler(0, 1.57, 0) 
+    },  
 };
 
 function preloadWeapons() {
