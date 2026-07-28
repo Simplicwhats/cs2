@@ -1,19 +1,28 @@
-// audio.js - Usando arquivos de áudio reais (.mp3)
+// audio.js - Sistema completo de áudio para todas as armas
 
-export function playShootSound() {
+export function playShootSound(weaponKey = 'deagle') {
     try {
-        // Carrega o arquivo de som da pasta sounds
-        const sound = new Audio('sounds/pistol.mp3');
-        sound.volume = 0.5; // Ajuste o volume (0.0 até 1.0)
-        
-        // Reproduz o som permitindo sobreposição (caso atire muito rápido)
+        // Toca o som específico da arma atual (ex: sounds/ak47.mp3, sounds/awp.mp3)
+        const sound = new Audio(`sounds/${weaponKey}.mp3`);
+        sound.volume = 0.5;
         sound.currentTime = 0;
         sound.play().catch(err => {
-            // Os navegadores bloqueiam autoplay até o usuário interagir/clicar na tela
             console.log("Áudio aguardando interação do usuário:", err);
         });
     } catch (e) {
         console.error("Erro ao reproduzir som de tiro:", e);
+    }
+}
+
+export function playReloadSound(weaponKey = 'deagle') {
+    try {
+        // Toca o reload específico da arma atual (ex: sounds/reload_ak47.mp3)
+        const sound = new Audio(`sounds/reload_${weaponKey}.mp3`);
+        sound.volume = 0.6;
+        sound.currentTime = 0;
+        sound.play().catch(err => {});
+    } catch (e) {
+        console.error("Erro ao reproduzir som de recarga:", e);
     }
 }
 
@@ -23,14 +32,7 @@ export function playExplosionSound() {
         sound.volume = 0.7;
         sound.currentTime = 0;
         sound.play().catch(() => {});
-    } catch (e) {}
-}
-
-export function playReloadSound() {
-    try {
-        const sound = new Audio('sounds/reload.mp3');
-        sound.volume = 0.6;
-        sound.currentTime = 0;
-        sound.play().catch(() => {});
-    } catch (e) {}
+    } catch (e) {
+        console.error("Erro ao reproduzir som de explosão:", e);
+    }
 }
