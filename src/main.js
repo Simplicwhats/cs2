@@ -28,6 +28,7 @@ let hp = 100, isDead = false;
 let gunGroup;
 let loadedWeapons = {}; 
 let currentWeaponModel = null;
+let mixer = null; // Mixer do Three.js para as animações
 const gltfLoader = new GLTFLoader();
 
 let activeGrenades = [], tracers = [], bots = [], networkPlayers = {}, playerScores = {}; 
@@ -45,8 +46,7 @@ const buyMenu = document.getElementById('buy-menu');
 const crosshairElem = document.getElementById('crosshair');
 const scopeOverlay = document.getElementById('scope-overlay');
 
-// ESCALAS E POSIÇÕES CALCULADAS EXATAMENTE COM BASE NOS SEUS PRINTS 3D
-// ESCALAS CORRIGIDAS PARA MODELOS MUITO GRANDES
+// ESCALAS E POSIÇÕES CORRIGIDAS E CENTRALIZADAS (X = 0)
 const weaponScales = {
     deagle: { scale: 0.008, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
     p90:    { scale: 0.002, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
@@ -65,7 +65,12 @@ function preloadWeapons() {
                     child.material.needsUpdate = true;
                 }
             });
-            loadedWeapons[w] = model; 
+            
+            // Salva o modelo e as animações embutidas
+            loadedWeapons[w] = {
+                scene: model,
+                animations: gltf.animations
+            }; 
             
             if (w === getCurrentWeaponKey()) {
                 build3DWeapon();
@@ -109,9 +114,10 @@ function build3DWeapon() {
         gunGroup.remove(gunGroup.children[0]);
     }
     currentWeaponModel = null;
+    mixer = null; // Reseta o mixer ao trocar de arma
     
     const curKey = getCurrentWeaponKey();
-    const config = weaponScales[curKey] || { scale: 0.3, pos: new THREE.Vector3(0.15, -0.2, -0.35) };
+    const config = weaponScales[curKey] || { scale: 0.008, pos: new THREE.Vector3(0, -0.15, -0.35) };
 
     if (activeSlot === 'grenade') {
         const nade = new THREE.Mesh(new THREE.SphereGeometry(0.08), new THREE.MeshStandardMaterial({color: 0x2e3d29}));
@@ -119,12 +125,20 @@ function build3DWeapon() {
         gunGroup.add(nade);
         currentWeaponModel = nade;
     } else if (loadedWeapons[curKey]) {
-        const wpnClone = SkeletonUtils.clone(loadedWeapons[curKey]);
+        const weaponData = loadedWeapons[curKey];
+        const wpnClone = SkeletonUtils.clone(weaponData.scene);
         wpnClone.scale.set(config.scale, config.scale, config.scale); 
         wpnClone.position.copy(config.pos); 
         wpnClone.rotation.set(0, Math.PI, 0); 
         gunGroup.add(wpnClone);
         currentWeaponModel = wpnClone;
+
+        // Se houver animações no GLB, inicia o AnimationMixer
+        if (weaponData.animations && weaponData.animations.length > 0) {
+            mixer = new THREE.AnimationMixer(wpnClone);
+            const action = mixer.clipAction(weaponData.animations[0]);
+            action.play();
+        }
     } else {
         const placeholder = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.6), new THREE.MeshBasicMaterial({color: 0x555555}));
         placeholder.position.copy(config.pos);
@@ -360,6 +374,9 @@ if (!window.debugSpawn) {
 function animate() {
     requestAnimationFrame(animate);
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
+
+    // Atualiza o mixer de animação do modelo 3D
+    if (mixer) mixer.update(delta);
 
     if (mapLoaded && mapSpawnPoint && !window.spawnApplied) {
         camera.position.copy(mapSpawnPoint);
