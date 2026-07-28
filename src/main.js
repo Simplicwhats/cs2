@@ -46,12 +46,13 @@ const crosshairElem = document.getElementById('crosshair');
 const scopeOverlay = document.getElementById('scope-overlay');
 
 // ESCALAS E POSIÇÕES CALCULADAS EXATAMENTE COM BASE NOS SEUS PRINTS 3D
+// ESCALAS CORRIGIDAS PARA MODELOS MUITO GRANDES
 const weaponScales = {
-    deagle: { scale: 0.15, pos: new THREE.Vector3(0, -0.15, -0.35) }, // X virou 0 (centralizado)
-    p90:    { scale: 0.045, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
-    ak47:   { scale: 0.07,  pos: new THREE.Vector3(0, -0.15, -0.35) }, 
-    m4a4:   { scale: 0.35,  pos: new THREE.Vector3(0, -0.15, -0.35) }, 
-    awp:    { scale: 0.022, pos: new THREE.Vector3(0, -0.15, -0.35) }  
+    deagle: { scale: 0.008, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
+    p90:    { scale: 0.002, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
+    ak47:   { scale: 0.003, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
+    m4a4:   { scale: 0.003, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
+    awp:    { scale: 0.002, pos: new THREE.Vector3(0, -0.15, -0.35) }  
 };
 
 function preloadWeapons() {
