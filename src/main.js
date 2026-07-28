@@ -53,10 +53,10 @@ const weaponScales = {
    ak47: { 
     scale: 0.006, // O tamanho que já tinha dado certo
     pos: new THREE.Vector3(0, -0.15, -0.35), 
-    rot: new THREE.Euler(0, 0, 0.1) // Experimente mexer levemente no terceiro número (ex: 0.1, -0.1) para girar o pulso
-} 
+    rot: new THREE.Euler(0, 0, 0.1) 
+},
     m4a4:   { scale: 0.003, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
-    awp:    { scale: 0.002, pos: new THREE.Vector3(0, -0.15, -0.35) }  
+    awp:    { scale: 0.002, pos: new THREE.Vector3(0, -0.15, -0.35) },  
 };
 
 function preloadWeapons() {
