@@ -50,7 +50,11 @@ const scopeOverlay = document.getElementById('scope-overlay');
 const weaponScales = {
     deagle: { scale: 0.008, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
     p90:    { scale: 0.002, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
-    ak47:   { scale: 0.006, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
+   ak47: { 
+    scale: 0.006, // O tamanho que já tinha dado certo
+    pos: new THREE.Vector3(0, -0.15, -0.35), 
+    rot: new THREE.Euler(0, 0, 0.1) // Experimente mexer levemente no terceiro número (ex: 0.1, -0.1) para girar o pulso
+} 
     m4a4:   { scale: 0.003, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
     awp:    { scale: 0.002, pos: new THREE.Vector3(0, -0.15, -0.35) }  
 };
