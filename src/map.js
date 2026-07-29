@@ -7,9 +7,8 @@ export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false;
 
-// COORDENADA FIXA DO CHÃO REAL DA DUST2
-// (X: 28.33, Y: -5.0 para você cair direto no chão, Z: 24.17)
-export let mapSpawnPoint = new THREE.Vector3(28.33, -5.0, 24.17); 
+// Ponto de nascimento zerado no centro
+export let mapSpawnPoint = new THREE.Vector3(0, 3.0, 0); 
 
 export function buildMapGeometries(scene) {
     collidables.length = 0;
@@ -17,8 +16,7 @@ export function buildMapGeometries(scene) {
     mapWallMeshes.length = 0;
     mapLoaded = false;
 
-    // Luz ambiente para garantir boa iluminação
-    const testLight = new THREE.AmbientLight(0xffffff, 1.5);
+    const testLight = new THREE.AmbientLight(0xffffff, 1.8);
     scene.add(testLight);
 
     const loader = new GLTFLoader();
@@ -28,16 +26,26 @@ export function buildMapGeometries(scene) {
         (gltf) => {
             const mapModel = gltf.scene;
 
-            mapModel.position.set(0, 0, 0);
-            mapModel.scale.set(1, 1, 1);
+            // 1. MEDE O TAMANHO REAL DO MAPA
+            const mapBox = new THREE.Box3().setFromObject(mapModel);
+            const center = mapBox.getCenter(new THREE.Vector3());
+
+            // 2. FORÇA O MAPA A IR PARA O CENTRO (0,0,0) E O CHÃO PARA Y=0
+            // Resolve mapas que foram exportados a 1000m de distância!
+            mapModel.position.x = -center.x;
+            mapModel.position.y = -mapBox.min.y; // Coloca o piso em Y = 0
+            mapModel.position.z = -center.z;
             mapModel.updateMatrixWorld(true);
+
+            // 3. JOGADOR NASCE NO CENTRO ZERADO E POUCO ACIMA DO CHÃO
+            mapSpawnPoint.set(0, 3.0, 0);
 
             mapModel.traverse((child) => {
                 if (!child.isMesh) return;
 
                 const objName = child.name.toLowerCase();
 
-                // 1. Ignora céus, domos e barreiras invisíveis do topo
+                // Esconde céus e barreiras do modelo
                 if (objName.includes('sky') || objName.includes('barrier') || objName.includes('clip') || objName.includes('cel') || objName.includes('dome')) {
                     child.visible = false;
                     return;
@@ -55,25 +63,26 @@ export function buildMapGeometries(scene) {
 
                 const box = new THREE.Box3().setFromObject(child);
                 
-                // 2. FILTRO DE COLISÃO: Ignora tetos/céus altos (só cria colisão para coisas abaixo de Y = 50)
-                if (box.max.y < 50) {
+                // Só gera colisão para paredes/caixas reais (descarta tetos gigantes)
+                const height = box.max.y - box.min.y;
+                if (height < 60) {
                     collidables.push(box);
                 }
             });
 
-            // 3. Chão invisível de emergência posicionado no fundo real da fase (Y = -15)
+            // Chão invisível de emergência logo abaixo do chão do mapa (Y = -2)
             const solidFloor = new THREE.Mesh(
                 new THREE.BoxGeometry(5000, 2, 5000), 
                 new THREE.MeshBasicMaterial({ visible: false })
             );
-            solidFloor.position.set(0, -15.0, 0);
+            solidFloor.position.set(0, -2.0, 0);
             solidFloor.updateMatrixWorld(true);
             scene.add(solidFloor);
             collidables.push(new THREE.Box3().setFromObject(solidFloor));
 
             scene.add(mapModel);
             mapLoaded = true;
-            console.log("✅ Mapa carregado com sucesso! Ponto de nascimento:", mapSpawnPoint);
+            console.log("✅ Mapa reposicionado com sucesso no ponto (0, 0, 0)!");
         },
         undefined,
         (err) => {
