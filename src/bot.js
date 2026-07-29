@@ -1,7 +1,69 @@
 // src/bot.js
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { wallMeshes, collidables } from './map.js';
 import { playShootSound } from './audio.js';
+
+export function spawnBots(scene, botsArray, spawnPoints) {
+    const loader = new GLTFLoader();
+
+    spawnPoints.forEach((spawnPos, index) => {
+        loader.load('models/bot.glb', (gltf) => {
+            const botModel = gltf.scene;
+            const animations = gltf.animations;
+
+            // 🎨 APLICAÇÃO DE SKIN TÁTICA
+            botModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = new THREE.MeshStandardMaterial({
+                        color: 0x333b42,
+                        metalness: 0.3,
+                        roughness: 0.6
+                    });
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            botModel.position.copy(spawnPos);
+            scene.add(botModel);
+
+            // 🎬 CONFIGURAÇÃO DO MIXER DE ANIMAÇÃO DO BOT
+            let mixer = null;
+            let actions = {};
+            
+            if (animations && animations.length > 0) {
+                mixer = new THREE.AnimationMixer(botModel);
+                
+                // Mapeia as animações disponíveis no arquivo GLB
+                animations.forEach((clip) => {
+                    const action = mixer.clipAction(clip);
+                    actions[clip.name.toLowerCase()] = action;
+                });
+
+                // Se houver animação padrão (ex: corrida ou idle), inicia ela
+                const defaultAction = actions['run'] || actions['walk'] || actions['idle'] || actions[0];
+                if (defaultAction) {
+                    defaultAction.play();
+                }
+            }
+
+            botsArray.push({
+                mesh: botModel,
+                pos: botModel.position,
+                lastShot: 0,
+                strafeDir: 1,
+                id: index,
+                mixer: mixer,     // Mixer individual do bot
+                actions: actions  // Lista de animações
+            });
+
+            console.log(`🤖 Bot ${index} criado com animações e inserido no mapa!`);
+        }, undefined, (error) => {
+            console.error("Erro ao carregar models/bot.glb:", error);
+        });
+    });
+}
 
 export function updateBotLogic(gameMode, isDead, bots, camera, delta, time, takeDamage) {
     if (gameMode !== 'bot' || isDead) return;
@@ -10,6 +72,11 @@ export function updateBotLogic(gameMode, isDead, bots, camera, delta, time, take
 
     for (let bot of bots) {
         if (!bot.mesh) continue;
+
+        // ⏱️ ATUALIZA A ANIMAÇÃO DO BOT A CADA FRAME
+        if (bot.mixer) {
+            bot.mixer.update(delta);
+        }
 
         const botEyes = bot.mesh.position.clone().add(new THREE.Vector3(0, 1.6, 0));
         
@@ -96,43 +163,4 @@ export function updateBotLogic(gameMode, isDead, bots, camera, delta, time, take
         }
         bot.pos.copy(bot.mesh.position);
     }
-}
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-
-export function spawnBots(scene, botsArray, spawnPoints) {
-    const loader = new GLTFLoader();
-
-    spawnPoints.forEach((spawnPos, index) => {
-        loader.load('models/bot.glb', (gltf) => {
-            const botModel = gltf.scene;
-
-            // 🎨 APLICAÇÃO DE SKIN CS (Estilo Agente Tático)
-            botModel.traverse((child) => {
-                if (child.isMesh) {
-                    child.material = new THREE.MeshStandardMaterial({
-                        color: 0x333b42,      // Tom cinza militar tático
-                        metalness: 0.3,
-                        roughness: 0.6
-                    });
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                }
-            });
-
-            botModel.position.copy(spawnPos);
-            scene.add(botModel); // Adiciona na cena para aparecer visível!
-
-            botsArray.push({
-                mesh: botModel,
-                pos: botModel.position,
-                lastShot: 0,
-                strafeDir: 1,
-                id: index
-            });
-
-            console.log(`🤖 Bot ${index} criado com skin e inserido no mapa!`);
-        }, undefined, (error) => {
-            console.error("Erro ao carregar models/bot.glb:", error);
-        });
-    });
 }
