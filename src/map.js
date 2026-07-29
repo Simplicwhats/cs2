@@ -7,14 +7,18 @@ export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false;
 
-// COORDENADA DE SPAWN SEGURA DENTRO DO MAPA
-export let mapSpawnPoint = new THREE.Vector3(0, 5.0, 0); 
+// Nascer no céu para evitar ficar preso em caixotes ou paredes
+export let mapSpawnPoint = new THREE.Vector3(0, 80.0, 0); 
 
 export function buildMapGeometries(scene) {
     collidables.length = 0;
     wallMeshes.length = 0;
     mapWallMeshes.length = 0;
     mapLoaded = false;
+
+    // Luz super forte para garantir que não seja escuridão do ambiente
+    const testLight = new THREE.AmbientLight(0xffffff, 2.5);
+    scene.add(testLight);
 
     const loader = new GLTFLoader();
 
@@ -23,12 +27,11 @@ export function buildMapGeometries(scene) {
         (gltf) => {
             const mapModel = gltf.scene;
 
-            // Centraliza a malha no ponto zero
             const mapBox = new THREE.Box3().setFromObject(mapModel);
             const center = mapBox.getCenter(new THREE.Vector3());
 
             mapModel.position.x = -center.x;
-            mapModel.position.y = -mapBox.min.y; // Mantém a base no nível zero
+            mapModel.position.y = -mapBox.min.y; 
             mapModel.position.z = -center.z;
             mapModel.updateMatrixWorld(true);
 
@@ -41,21 +44,19 @@ export function buildMapGeometries(scene) {
                     return;
                 }
 
-                if (child.material) {
-                    child.material.side = THREE.DoubleSide;
-                }
+                // REMOVIDO: DoubleSide. Se você nascer dentro de uma parede, 
+                // ela ficará transparente por dentro e você enxergará o mapa!
 
                 child.castShadow = true;
                 child.receiveShadow = true;
 
-                // Alimenta a lista que o Raycaster consulta para pisar no chão
                 wallMeshes.push(child);
                 mapWallMeshes.push(child);
             });
 
             scene.add(mapModel);
             mapLoaded = true;
-            console.log("✅ Mapa e superfícies de solo carregados com sucesso!");
+            console.log("✅ Mapa carregado! Câmera caindo do alto...");
         },
         undefined,
         (err) => {
