@@ -462,7 +462,7 @@ function animate() {
         // 3. Gravidade e Movimento Vertical
         camera.position.y += velocity.y * delta;
 
-        // 4. Colisão Vertical Robusta (Imede que atravesse o chão ou tetos)
+        // 4. Colisão Vertical Robusta Anti-Tunneling (Piso e Tetos)
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
         canJump = false;
 
@@ -471,14 +471,14 @@ function animate() {
                 const playerFeet = camera.position.y - (playerHeight / 2);
                 const playerHead = camera.position.y + (playerHeight / 2);
 
-                // Se estiver caindo e cruzou o topo de qualquer caixa/piso
-                if (velocity.y <= 0 && playerFeet <= box.max.y && playerFeet >= box.min.y) {
+                // 🟢 PISO: Se estiver caindo e os pés cruzarem a superfície superior da caixa/piso (com tolerância de 1.5 para evitar atravessar)
+                if (velocity.y <= 0 && playerFeet <= box.max.y && playerFeet >= box.max.y - 1.5) {
                     camera.position.y = box.max.y + (playerHeight / 2);
                     velocity.y = 0;
                     canJump = true;
                     break;
                 }
-                // Se bateu a cabeça no teto subindo
+                // 🔴 TETO: Se bater a cabeça subindo
                 else if (velocity.y > 0 && playerHead >= box.min.y && playerHead <= box.max.y) {
                     camera.position.y = box.min.y - (playerHeight / 2);
                     velocity.y = 0;
@@ -487,7 +487,7 @@ function animate() {
             }
         }
 
-        // Resgate de segurança caso saia muito dos limites
+        // Resgate de segurança caso caia muito abaixo do mapa
         if (camera.position.y < -150) { 
             camera.position.copy(mapSpawnPoint); 
             velocity.set(0, 0, 0);
@@ -504,6 +504,7 @@ function animate() {
     prevTime = time;
     if (composer && scene && camera) composer.render(); 
 }
+
 btnStart.addEventListener('click', () => {
     playerNick = document.getElementById('player-nick').value || "Striker";
     gameMode = document.querySelector('.mode-btn.active').id === 'mode-bot' ? 'bot' : 'online';
