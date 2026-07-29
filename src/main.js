@@ -8,11 +8,12 @@ import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { itemsConfig, safeSpawns } from './config.js';
 import { playShootSound, playExplosionSound, playReloadSound } from './audio.js';
 import { buildMapGeometries, collidables, wallMeshes, mapWallMeshes, mapSpawnPoint, mapLoaded } from './map.js';
-import { updateBotLogic } from './bot.js';
+import { updateBotLogic, spawnBots } from './bot.js';
 
 let gameMode = 'bot';
 let playerNick = "Striker";
 let playerMoney = 5000;
+let bots = [];
 
 let inventory = { secondary: { key: 'deagle', ammo: 7, reserveAmmo: 35 }, primary: null, grenade: null };
 const slotOrder = ['primary', 'secondary', 'grenade'];
@@ -411,6 +412,17 @@ function animate() {
         camera.position.set(mapSpawnPoint.x, mapSpawnPoint.y + (playerHeight / 2), mapSpawnPoint.z);
         velocity.set(0, 0, 0); 
         window.spawnApplied = true;
+
+        // 🤖 DISPARA O SPAWN DOS BOTS ASSIM QUE O MAPA CARREGA
+        if (gameMode === 'bot' && bots.length === 0) {
+            // Cria 3 bots em posições próximas ao spawn ou aleatórias no mapa
+            const botSpawns = [
+                new THREE.Vector3(mapSpawnPoint.x + 5, mapSpawnPoint.y, mapSpawnPoint.z + 5),
+                new THREE.Vector3(mapSpawnPoint.x - 5, mapSpawnPoint.y, mapSpawnPoint.z + 8),
+                new THREE.Vector3(mapSpawnPoint.x + 8, mapSpawnPoint.y, mapSpawnPoint.z - 5)
+            ];
+            spawnBots(scene, bots, botSpawns);
+        }
     }
 
     if (pointerLocked && !isDead && !buyMenuOpen) {
@@ -451,12 +463,11 @@ function animate() {
         // 2. Gravidade e Movimento Vertical
         camera.position.y += velocity.y * delta;
 
-        // 3. DETECÇÃO DE CHÃO REAL POR RAYCASTER VERTICAL (Funciona em todo o mapa)
+        // 3. DETECÇÃO DE CHÃO REAL POR RAYCASTER VERTICAL
         canJump = false;
         let grounded = false;
 
         if (wallMeshes && wallMeshes.length > 0) {
-            // Dispara um raio para baixo a partir da posição atual da câmera
             const downRay = new THREE.Raycaster(camera.position, new THREE.Vector3(0, -1, 0), 0, (playerHeight / 2) + 0.2);
             const floorIntersects = downRay.intersectObjects(wallMeshes, false);
 
@@ -464,7 +475,6 @@ function animate() {
                 const hit = floorIntersects[0];
                 const groundY = hit.point.y + (playerHeight / 2);
                 
-                // Se estiver caindo em cima de qualquer superfície do mapa, pousa nela
                 if (camera.position.y <= groundY + 0.1) {
                     camera.position.y = groundY;
                     velocity.y = 0;
@@ -474,7 +484,6 @@ function animate() {
             }
         }
 
-        // 🛡️ Rede de segurança caso esteja em uma área sem malha de chão
         const fallbackGround = mapSpawnPoint ? mapSpawnPoint.y : 0;
         const currentFeet = camera.position.y - (playerHeight / 2);
         if (!grounded && currentFeet <= fallbackGround && velocity.y <= 0) {
@@ -483,7 +492,6 @@ function animate() {
             canJump = true;
         }
 
-        // Resgate seguro caso caia em algum buraco profundo
         if (camera.position.y < fallbackGround - 50) { 
             camera.position.set(mapSpawnPoint.x, mapSpawnPoint.y + (playerHeight / 2), mapSpawnPoint.z);
             velocity.set(0, 0, 0);
@@ -493,6 +501,17 @@ function animate() {
             cameraEuler.x = Math.max(0, cameraEuler.x - delta * 0.5); 
             camera.quaternion.setFromEuler(cameraEuler); 
         }
+
+        // 🤖 ATUALIZA A INTELIGÊNCIA E MOVIMENTO DOS BOTS A CADA FRAME
+        updateBotLogic(gameMode, isDead, bots, camera, delta, time, (damageAmount) => {
+            hp -= damageAmount;
+            updateHUD();
+            if (hp <= 0) {
+                isDead = true;
+                document.exitPointerLock();
+                // Tela de morte ou respawn aqui
+            }
+        });
 
         sendNetworkData();
     }
