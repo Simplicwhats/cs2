@@ -178,7 +178,6 @@ function initGameEngine() {
     scene.background = new THREE.Color(0x87ceeb);
 
     camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 50, 0);
 
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.8);
     const dirLight = new THREE.DirectionalLight(0xffffff, 2.0); 
@@ -300,14 +299,12 @@ function animate() {
     requestAnimationFrame(animate);
     const time = performance.now(), delta = Math.min((time - prevTime) / 1000, 0.1);
 
-    // 🛑 BLOQUEIO DE SEGURANÇA: Não processa física antes do mapa carregar!
     if (!mapLoaded) {
         prevTime = time;
         if (composer && scene && camera) composer.render();
         return;
     }
 
-    // APLICADO APENAS APÓS O MAPA CARREGAR
     if (!window.spawnApplied) {
         camera.position.copy(mapSpawnPoint);
         velocity.set(0, 0, 0); 
@@ -325,7 +322,7 @@ function animate() {
 
         velocity.x -= velocity.x * 10.0 * delta; 
         velocity.z -= velocity.z * 10.0 * delta; 
-        velocity.y -= 9.8 * 3.5 * delta; // Gravidade
+        velocity.y -= 9.8 * 4.5 * delta; 
 
         let speed = isRunning ? 100 : 60;
         
@@ -336,7 +333,7 @@ function animate() {
         
         camera.position.y += velocity.y * delta;
 
-        // 🎯 DETECÇÃO DE SOLO POR RAYCASTING (Ignora tetos e caixas!)
+        // SISTEMA DE DETECÇÃO DE SOLO MELHORADO PARA EVITAR ATRAVESSAR O CHÃO
         downRaycaster.set(camera.position, downVector);
         const hits = downRaycaster.intersectObjects(wallMeshes, false);
 
@@ -344,12 +341,20 @@ function animate() {
             const groundHit = hits[0];
             const playerEyeHeight = 1.6; 
             
-            // Se os pés estiverem encostando ou abaixo do chão detectado
-            if (groundHit.distance <= playerEyeHeight + 0.2 && velocity.y <= 0) {
+            // fallMargin: Garante que mesmo em alta velocidade o jogo calcule o chão corretamente
+            const fallMargin = Math.max(0.5, Math.abs(velocity.y * delta));
+
+            if (groundHit.distance <= playerEyeHeight + fallMargin && velocity.y <= 0) {
                 camera.position.y = groundHit.point.y + playerEyeHeight;
                 velocity.y = 0;
                 canJump = true;
             }
+        }
+
+        // Sistema de Resgate (Caso você caia da beirada do mapa, ele te joga de volta)
+        if (camera.position.y < -30) {
+            camera.position.copy(mapSpawnPoint);
+            velocity.set(0, 0, 0);
         }
     }
 
