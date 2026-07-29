@@ -436,12 +436,11 @@ function animate() {
             moveDir.normalize();
         }
 
-        // 🎯 COLISÃO POR RAYCASTER: Impede de atravessar paredes, portas e caixas sem prender o jogador
+        // 1. Colisão Horizontal (Paredes) via Raycaster
         if (moveDir.lengthSq() > 0 && wallMeshes && wallMeshes.length > 0) {
-            const raycaster = new THREE.Raycaster(camera.position, moveDir, 0, 0.7); // Distância de alcance do toque na parede
+            const raycaster = new THREE.Raycaster(camera.position, moveDir, 0, 0.7);
             const intersects = raycaster.intersectObjects(wallMeshes, false);
 
-            // Se não houver obstáculo muito perto, move o personagem
             if (intersects.length === 0 || intersects[0].distance > 0.5) {
                 camera.position.addScaledVector(moveDir, speed * delta);
             }
@@ -449,22 +448,43 @@ function animate() {
             camera.position.addScaledVector(moveDir, speed * delta);
         }
 
-        // Gravidade e Movimento Vertical
+        // 2. Gravidade e Movimento Vertical
         camera.position.y += velocity.y * delta;
 
-        // Chão de segurança (Base do spawn)
-        const currentFeet = camera.position.y - (playerHeight / 2);
-        const groundLevel = mapSpawnPoint ? mapSpawnPoint.y : 0;
-
+        // 3. DETECÇÃO DE CHÃO REAL POR RAYCASTER VERTICAL (Funciona em todo o mapa)
         canJump = false;
-        if (currentFeet <= groundLevel) {
-            camera.position.y = groundLevel + (playerHeight / 2);
+        let grounded = false;
+
+        if (wallMeshes && wallMeshes.length > 0) {
+            // Dispara um raio para baixo a partir da posição atual da câmera
+            const downRay = new THREE.Raycaster(camera.position, new THREE.Vector3(0, -1, 0), 0, (playerHeight / 2) + 0.2);
+            const floorIntersects = downRay.intersectObjects(wallMeshes, false);
+
+            if (floorIntersects.length > 0 && velocity.y <= 0) {
+                const hit = floorIntersects[0];
+                const groundY = hit.point.y + (playerHeight / 2);
+                
+                // Se estiver caindo em cima de qualquer superfície do mapa, pousa nela
+                if (camera.position.y <= groundY + 0.1) {
+                    camera.position.y = groundY;
+                    velocity.y = 0;
+                    canJump = true;
+                    grounded = true;
+                }
+            }
+        }
+
+        // 🛡️ Rede de segurança caso esteja em uma área sem malha de chão
+        const fallbackGround = mapSpawnPoint ? mapSpawnPoint.y : 0;
+        const currentFeet = camera.position.y - (playerHeight / 2);
+        if (!grounded && currentFeet <= fallbackGround && velocity.y <= 0) {
+            camera.position.y = fallbackGround + (playerHeight / 2);
             velocity.y = 0;
             canJump = true;
         }
 
-        // Resgate seguro caso caia em buracos
-        if (camera.position.y < groundLevel - 50) { 
+        // Resgate seguro caso caia em algum buraco profundo
+        if (camera.position.y < fallbackGround - 50) { 
             camera.position.set(mapSpawnPoint.x, mapSpawnPoint.y + (playerHeight / 2), mapSpawnPoint.z);
             velocity.set(0, 0, 0);
         }
