@@ -430,19 +430,29 @@ function animate() {
         
         proposedPos.y += velocity.y * delta;
 
-        // Colisão horizontal contra paredes usando as caixas do mapa
-        playerBox.setFromCenterAndSize(proposedPos, new THREE.Vector3(0.6, 1.8, 0.6));
-        let canMoveX = true, canMoveZ = true;
+        // 🛑 DIMENSÕES AJUSTADAS: Caixa um pouco mais larga (0.8) para evitar atravessar frestas e altura menor (1.5)
+        const playerWidth = 0.8;
+        const playerHeight = 1.5;
+        const playerEyeHeight = 1.3; // Altura dos olhos mais baixa (visão padrão de FPS)
 
-        if (time > 1000) {
-            for (let box of collidables) {
-                if (playerBox.intersectsBox(box)) {
-                    const testBoxX = new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(proposedPos.x, camera.position.y, camera.position.z), new THREE.Vector3(0.6, 1.8, 0.6));
-                    if (testBoxX.intersectsBox(box)) canMoveX = false;
-                    
-                    const testBoxZ = new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(camera.position.x, camera.position.y, proposedPos.z), new THREE.Vector3(0.6, 1.8, 0.6));
-                    if (testBoxZ.intersectsBox(box)) canMoveZ = false;
-                }
+        playerBox.setFromCenterAndSize(proposedPos, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
+        let canMoveX = true;
+        let canMoveZ = true;
+
+        // Colisão horizontal rigorosa contra as paredes do mapa
+        for (let box of collidables) {
+            if (playerBox.intersectsBox(box)) {
+                const testBoxX = new THREE.Box3().setFromCenterAndSize(
+                    new THREE.Vector3(proposedPos.x, camera.position.y, camera.position.z), 
+                    new THREE.Vector3(playerWidth, playerHeight, playerWidth)
+                );
+                if (testBoxX.intersectsBox(box)) canMoveX = false;
+                
+                const testBoxZ = new THREE.Box3().setFromCenterAndSize(
+                    new THREE.Vector3(camera.position.x, camera.position.y, proposedPos.z), 
+                    new THREE.Vector3(playerWidth, playerHeight, playerWidth)
+                );
+                if (testBoxZ.intersectsBox(box)) canMoveZ = false;
             }
         }
 
@@ -451,16 +461,13 @@ function animate() {
         
         camera.position.y = proposedPos.y;
 
-        // 🎯 RAYCASTER DE SOLO: Pega exatamente a altura da malha geométrica da Dust2 abaixo de você
+        // 🎯 RAYCASTER DE SOLO: Mantém os pés colados no chão com a nova altura dos olhos
         downRaycaster.set(camera.position, downVector);
         const hits = downRaycaster.intersectObjects(wallMeshes, false);
 
         if (hits.length > 0) {
             const groundHit = hits[0];
-            const playerEyeHeight = 1.6; // Altura dos olhos do jogador em relação aos pés
-            
-            // Se o jogador estiver caindo em direção ao chão e próximo o suficiente
-            if (groundHit.distance <= playerEyeHeight + 0.3 && velocity.y <= 0) {
+            if (groundHit.distance <= playerEyeHeight + 0.4 && velocity.y <= 0) {
                 camera.position.y = groundHit.point.y + playerEyeHeight;
                 velocity.y = 0;
                 canJump = true;
