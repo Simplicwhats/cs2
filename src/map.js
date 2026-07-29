@@ -6,7 +6,10 @@ export let collidables = [];
 export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false;
-export let mapSpawnPoint = new THREE.Vector3(0, 10, 0); 
+
+// COORDENADA FIXA DO CHÃO REAL DA DUST2
+// (X: 28.33, Y: -5.0 para você cair direto no chão, Z: 24.17)
+export let mapSpawnPoint = new THREE.Vector3(28.33, -5.0, 24.17); 
 
 export function buildMapGeometries(scene) {
     collidables.length = 0;
@@ -14,7 +17,7 @@ export function buildMapGeometries(scene) {
     mapWallMeshes.length = 0;
     mapLoaded = false;
 
-    // Luz ambiente para clarear o mapa
+    // Luz ambiente para garantir boa iluminação
     const testLight = new THREE.AmbientLight(0xffffff, 1.5);
     scene.add(testLight);
 
@@ -29,21 +32,19 @@ export function buildMapGeometries(scene) {
             mapModel.scale.set(1, 1, 1);
             mapModel.updateMatrixWorld(true);
 
-            const validBox = new THREE.Box3();
-            let hasValidMeshes = false;
-
             mapModel.traverse((child) => {
                 if (!child.isMesh) return;
 
-                // 1. FILTRO: Ignora céus e barreiras invisíveis para não criar chão no alto
                 const objName = child.name.toLowerCase();
-                if (objName.includes('sky') || objName.includes('barrier') || objName.includes('clip') || objName.includes('cel')) {
+
+                // 1. Ignora céus, domos e barreiras invisíveis do topo
+                if (objName.includes('sky') || objName.includes('barrier') || objName.includes('clip') || objName.includes('cel') || objName.includes('dome')) {
                     child.visible = false;
-                    return; // Sai da função antes de adicionar colisão nisso
+                    return;
                 }
 
                 if (child.material) {
-                    child.material.side = THREE.DoubleSide; // Renderiza os dois lados da textura
+                    child.material.side = THREE.DoubleSide;
                 }
 
                 child.castShadow = true;
@@ -54,41 +55,25 @@ export function buildMapGeometries(scene) {
 
                 const box = new THREE.Box3().setFromObject(child);
                 
-                // Calcula o tamanho real da área jogável
-                if (!hasValidMeshes) {
-                    validBox.copy(box);
-                    hasValidMeshes = true;
-                } else {
-                    validBox.union(box);
-                }
-
-                const height = box.max.y - box.min.y;
-                
-                // Adiciona colisão apenas em objetos menores, ignorando domos gigantes
-                if (height < 50) {
+                // 2. FILTRO DE COLISÃO: Ignora tetos/céus altos (só cria colisão para coisas abaixo de Y = 50)
+                if (box.max.y < 50) {
                     collidables.push(box);
                 }
             });
 
-            // 2. Calcula o centro geométrico da área jogável
-            const center = validBox.getCenter(new THREE.Vector3());
-            
-            // 3. NOVO SPAWN: Agora nasce no centro, um pouco acima do chão médio (e não no topo do mapa!)
-            mapSpawnPoint.set(center.x, center.y + 5.0, center.z); 
-
-            // Chão de segurança embaixo do mapa inteiro
+            // 3. Chão invisível de emergência posicionado no fundo real da fase (Y = -15)
             const solidFloor = new THREE.Mesh(
-                new THREE.BoxGeometry(5000, 10, 5000), 
+                new THREE.BoxGeometry(5000, 2, 5000), 
                 new THREE.MeshBasicMaterial({ visible: false })
             );
-            solidFloor.position.set(center.x, validBox.min.y - 1.0, center.z);
+            solidFloor.position.set(0, -15.0, 0);
             solidFloor.updateMatrixWorld(true);
             scene.add(solidFloor);
             collidables.push(new THREE.Box3().setFromObject(solidFloor));
 
             scene.add(mapModel);
             mapLoaded = true;
-            console.log("✅ Mapa corrigido! Novo Spawn gerado:", mapSpawnPoint);
+            console.log("✅ Mapa carregado com sucesso! Ponto de nascimento:", mapSpawnPoint);
         },
         undefined,
         (err) => {
