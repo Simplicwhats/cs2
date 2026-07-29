@@ -462,25 +462,33 @@ function animate() {
         // 3. Gravidade e Movimento Vertical
         camera.position.y += velocity.y * delta;
 
-        // 4. Colisão Vertical com as Caixas do Mapa e Piso Sólido (Garante o Pouso)
+        // 4. Colisão Vertical Robusta (Imede que atravesse o chão ou tetos)
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
         canJump = false;
 
         for (let box of collidables) {
             if (playerBox.intersectsBox(box)) {
-                const feetY = camera.position.y - (playerHeight / 2);
-                // Se estiver caindo e batendo no topo de qualquer caixa/piso
-                if (velocity.y <= 0 && feetY >= box.max.y - 0.8 && feetY <= box.max.y + 1.2) {
+                const playerFeet = camera.position.y - (playerHeight / 2);
+                const playerHead = camera.position.y + (playerHeight / 2);
+
+                // Se estiver caindo e cruzou o topo de qualquer caixa/piso
+                if (velocity.y <= 0 && playerFeet <= box.max.y && playerFeet >= box.min.y) {
                     camera.position.y = box.max.y + (playerHeight / 2);
                     velocity.y = 0;
                     canJump = true;
                     break;
                 }
+                // Se bateu a cabeça no teto subindo
+                else if (velocity.y > 0 && playerHead >= box.min.y && playerHead <= box.max.y) {
+                    camera.position.y = box.min.y - (playerHeight / 2);
+                    velocity.y = 0;
+                    break;
+                }
             }
         }
 
-        // Resgate seguro caso caia muito abaixo do mapa
-        if (camera.position.y < -100) { 
+        // Resgate de segurança caso saia muito dos limites
+        if (camera.position.y < -150) { 
             camera.position.copy(mapSpawnPoint); 
             velocity.set(0, 0, 0);
         }
@@ -496,7 +504,6 @@ function animate() {
     prevTime = time;
     if (composer && scene && camera) composer.render(); 
 }
-
 btnStart.addEventListener('click', () => {
     playerNick = document.getElementById('player-nick').value || "Striker";
     gameMode = document.querySelector('.mode-btn.active').id === 'mode-bot' ? 'bot' : 'online';
