@@ -8,7 +8,7 @@ export let mapWallMeshes = [];
 export let mapLoaded = false;
 
 // Nascer no céu para evitar ficar preso em caixotes ou paredes
-export let mapSpawnPoint = new THREE.Vector3(0, 80.0, 0); 
+export let mapSpawnPoint = new THREE.Vector3(0, 40.0, 0); 
 
 export function buildMapGeometries(scene) {
     collidables.length = 0;
@@ -36,39 +36,27 @@ export function buildMapGeometries(scene) {
             mapModel.updateMatrixWorld(true);
 
             mapModel.traverse((child) => {
+                if (!child.isMesh) return;
 
-    if (!child.isMesh) return;
+                const objName = child.name.toLowerCase();
+                if (objName.includes('sky') || objName.includes('barrier') || objName.includes('clip')) {
+                    child.visible = false;
+                    return;
+                }
 
-    child.geometry.computeBoundingBox();
+                // REMOVIDO: DoubleSide. Se você nascer dentro de uma parede, 
+                // ela ficará transparente por dentro e você enxergará o mapa!
 
-    const box = new THREE.Box3().setFromObject(child);
+                child.castShadow = true;
+                child.receiveShadow = true;
 
-    collidables.push(box);
+                wallMeshes.push(child);
+                mapWallMeshes.push(child);
+            });
 
-    wallMeshes.push(child);
-    mapWallMeshes.push(child);
-
-});
-
-           scene.add(mapModel);
-
-// Atualiza a matriz do mapa
-mapModel.updateMatrixWorld(true);
-
-// Calcula o tamanho do mapa já posicionado
-const mapBox = new THREE.Box3().setFromObject(mapModel);
-
-// Define um spawn
-mapSpawnPoint.set(
-    mapBox.getCenter(new THREE.Vector3()).x,
-    mapBox.max.y + 2,
-    mapBox.getCenter(new THREE.Vector3()).z
-);
-
-mapLoaded = true;
-
-console.log("Spawn:", mapSpawnPoint);
-console.log("✅ Mapa carregado!");
+            scene.add(mapModel);
+            mapLoaded = true;
+            console.log("✅ Mapa carregado! Câmera caindo do alto...");
         },
         undefined,
         (err) => {
