@@ -418,50 +418,53 @@ function animate() {
 
         velocity.x -= velocity.x * 10.0 * delta; 
         velocity.z -= velocity.z * 10.0 * delta; 
-        velocity.y -= 9.8 * 3.5 * delta; // Gravidade equilibrada
+        velocity.y -= 9.8 * 3.5 * delta; 
 
         let speed = isRunning ? 10 : 6;
         
-        const proposedPos = camera.position.clone();
-        if (moveF) { proposedPos.x += camDir.x * speed * delta; proposedPos.z += camDir.z * speed * delta; }
-        if (moveB) { proposedPos.x -= camDir.x * speed * delta; proposedPos.z -= camDir.z * speed * delta; }
-        if (moveL) { proposedPos.x -= camRight.x * speed * delta; proposedPos.z -= camRight.z * speed * delta; }
-        if (moveR) { proposedPos.x += camRight.x * speed * delta; proposedPos.z += camRight.z * speed * delta; }
+        // Direção de movimento normalizada
+        let moveDir = new THREE.Vector3();
+        if (moveF) moveDir.add(camDir);
+        if (moveB) moveDir.sub(camDir);
+        if (moveL) moveDir.sub(camRight);
+        if (moveR) moveDir.add(camRight);
+        moveDir.y = 0;
         
-        proposedPos.y += velocity.y * delta;
+        if (moveDir.lengthSq() > 0) {
+            moveDir.normalize();
+        }
 
-        // 🛑 DIMENSÕES AJUSTADAS: Caixa um pouco mais larga (0.8) para evitar atravessar frestas e altura menor (1.5)
         const playerWidth = 0.8;
         const playerHeight = 1.5;
-        const playerEyeHeight = 1.3; // Altura dos olhos mais baixa (visão padrão de FPS)
+        const playerEyeHeight = 1.3;
 
-        playerBox.setFromCenterAndSize(proposedPos, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
-        let canMoveX = true;
-        let canMoveZ = true;
+        // 🛑 COLISÃO POR EIXO SEPARADO (Impossível atravessar paredes)
+        if (moveDir.lengthSq() > 0) {
+            // 1. Tenta mover no Eixo X
+            camera.position.x += moveDir.x * speed * delta;
+            playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
+            for (let box of collidables) {
+                if (playerBox.intersectsBox(box)) {
+                    camera.position.x -= moveDir.x * speed * delta;
+                    break;
+                }
+            }
 
-        // Colisão horizontal rigorosa contra as paredes do mapa
-        for (let box of collidables) {
-            if (playerBox.intersectsBox(box)) {
-                const testBoxX = new THREE.Box3().setFromCenterAndSize(
-                    new THREE.Vector3(proposedPos.x, camera.position.y, camera.position.z), 
-                    new THREE.Vector3(playerWidth, playerHeight, playerWidth)
-                );
-                if (testBoxX.intersectsBox(box)) canMoveX = false;
-                
-                const testBoxZ = new THREE.Box3().setFromCenterAndSize(
-                    new THREE.Vector3(camera.position.x, camera.position.y, proposedPos.z), 
-                    new THREE.Vector3(playerWidth, playerHeight, playerWidth)
-                );
-                if (testBoxZ.intersectsBox(box)) canMoveZ = false;
+            // 2. Tenta mover no Eixo Z
+            camera.position.z += moveDir.z * speed * delta;
+            playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
+            for (let box of collidables) {
+                if (playerBox.intersectsBox(box)) {
+                    camera.position.z -= moveDir.z * speed * delta;
+                    break;
+                }
             }
         }
 
-        if (canMoveX) camera.position.x = proposedPos.x;
-        if (canMoveZ) camera.position.z = proposedPos.z;
-        
-        camera.position.y = proposedPos.y;
+        // Gravidade Vertical
+        camera.position.y += velocity.y * delta;
 
-        // 🎯 RAYCASTER DE SOLO: Mantém os pés colados no chão com a nova altura dos olhos
+        // 🎯 RAYCASTER DE SOLO
         downRaycaster.set(camera.position, downVector);
         const hits = downRaycaster.intersectObjects(wallMeshes, false);
 
@@ -474,8 +477,8 @@ function animate() {
             }
         }
 
-        // Sistema de resgate caso caia no void
-        if (camera.position.y < -30) { 
+        // Resgate se cair no void
+        if (camera.position.y < mapSpawnPoint.y - 50) { 
             camera.position.copy(mapSpawnPoint); 
             velocity.set(0, 0, 0);
         }
