@@ -35,7 +35,7 @@ export function buildMapGeometries(scene) {
             mapModel.position.z = -center.z;
             mapModel.updateMatrixWorld(true);
 
-            mapModel.traverse((child) => {
+          mapModel.traverse((child) => {
                 if (!child.isMesh) return;
 
                 const objName = child.name.toLowerCase();
@@ -50,9 +50,15 @@ export function buildMapGeometries(scene) {
                 wallMeshes.push(child);
                 mapWallMeshes.push(child);
 
-                // 🛑 A MÁGICA ACONTECE AQUI: Cria a caixa de colisão física e joga na array
+                // 🛑 FILTRO INTELIGENTE DE COLISÃO
                 const boundingBox = new THREE.Box3().setFromObject(child);
-                collidables.push(boundingBox);
+                const size = new THREE.Vector3();
+                boundingBox.getSize(size);
+
+                // Só adiciona como colisão se a peça não for gigante (ignora estruturas enormes que travam o jogador)
+                if (size.x < 25 && size.y < 25 && size.z < 25) {
+                    collidables.push(boundingBox);
+                }
             });
 
             scene.add(mapModel);
