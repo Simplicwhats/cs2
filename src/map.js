@@ -7,7 +7,7 @@ export let mapWallMeshes = [];
 export let mapLoaded = false;
 
 // Ponto de spawn seguro
-export let mapSpawnPoint = new THREE.Vector3(0, 2.0, 0); 
+export let mapSpawnPoint = new THREE.Vector3(0, 1.0, 0); 
 
 export function buildMapGeometries(scene) {
     collidables.length = 0;
