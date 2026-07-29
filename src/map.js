@@ -1,4 +1,3 @@
-// src/map.js
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
@@ -7,7 +6,7 @@ export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false;
 
-// Nascer no céu para evitar ficar preso em caixotes ou paredes
+// Ponto de spawn seguro
 export let mapSpawnPoint = new THREE.Vector3(0, 2.0, 0); 
 
 export function buildMapGeometries(scene) {
@@ -16,7 +15,7 @@ export function buildMapGeometries(scene) {
     mapWallMeshes.length = 0;
     mapLoaded = false;
 
-    // Luz super forte para garantir que não seja escuridão do ambiente
+    // Luz super forte para garantir visibilidade
     const testLight = new THREE.AmbientLight(0xffffff, 2.5);
     scene.add(testLight);
 
@@ -35,7 +34,7 @@ export function buildMapGeometries(scene) {
             mapModel.position.z = -center.z;
             mapModel.updateMatrixWorld(true);
 
-          mapModel.traverse((child) => {
+            mapModel.traverse((child) => {
                 if (!child.isMesh) return;
 
                 const objName = child.name.toLowerCase();
@@ -49,21 +48,11 @@ export function buildMapGeometries(scene) {
 
                 wallMeshes.push(child);
                 mapWallMeshes.push(child);
-
-                // 🛑 FILTRO INTELIGENTE DE COLISÃO
-                const boundingBox = new THREE.Box3().setFromObject(child);
-                const size = new THREE.Vector3();
-                boundingBox.getSize(size);
-
-                // Só adiciona como colisão se a peça não for gigante (ignora estruturas enormes que travam o jogador)
-                if (size.x < 25 && size.y < 25 && size.z < 25) {
-                    collidables.push(boundingBox);
-                }
             });
 
             scene.add(mapModel);
             mapLoaded = true;
-            console.log("✅ Mapa carregado! Câmera caindo do alto...");
+            console.log("✅ Mapa carregado com sucesso!");
         },
         undefined,
         (err) => {
