@@ -13,7 +13,6 @@ import { updateBotLogic, spawnBots } from './bot.js';
 let gameMode = 'bot';
 let playerNick = "Striker";
 let playerMoney = 5000;
-let bots = [];
 
 let inventory = { secondary: { key: 'deagle', ammo: 7, reserveAmmo: 35 }, primary: null, grenade: null };
 const slotOrder = ['primary', 'secondary', 'grenade'];
@@ -33,7 +32,9 @@ let currentWeaponModel = null;
 let mixer = null; 
 const gltfLoader = new GLTFLoader();
 
-let activeGrenades = [], tracers = [], bots = [], networkPlayers = {}, playerScores = {}; 
+// Variáveis globais unificadas (sem duplicatas)
+let bots = [];
+let activeGrenades = [], tracers = [], networkPlayers = {}, playerScores = {}; 
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 let playerBox = new THREE.Box3();
 
@@ -415,7 +416,6 @@ function animate() {
 
         // 🤖 DISPARA O SPAWN DOS BOTS ASSIM QUE O MAPA CARREGA
         if (gameMode === 'bot' && bots.length === 0) {
-            // Cria 3 bots em posições próximas ao spawn ou aleatórias no mapa
             const botSpawns = [
                 new THREE.Vector3(mapSpawnPoint.x + 5, mapSpawnPoint.y, mapSpawnPoint.z + 5),
                 new THREE.Vector3(mapSpawnPoint.x - 5, mapSpawnPoint.y, mapSpawnPoint.z + 8),
@@ -509,7 +509,6 @@ function animate() {
             if (hp <= 0) {
                 isDead = true;
                 document.exitPointerLock();
-                // Tela de morte ou respawn aqui
             }
         });
 
