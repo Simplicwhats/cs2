@@ -8,7 +8,7 @@ export let mapWallMeshes = [];
 export let mapLoaded = false;
 
 // Nascer no céu para evitar ficar preso em caixotes ou paredes
-export let mapSpawnPoint = new THREE.Vector3(0, 1.0, 0); 
+export let mapSpawnPoint = new THREE.Vector3(0, 3.0, 0); 
 
 export function buildMapGeometries(scene) {
     collidables.length = 0;
