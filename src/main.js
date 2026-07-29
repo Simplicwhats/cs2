@@ -408,7 +408,14 @@ function animate() {
     const playerHeight = 1.5;
 
     if (mapLoaded && mapSpawnPoint && !window.spawnApplied) {
-        // 🎯 Nasce com os pés exatamente no chão do spawn (mapSpawnPoint.y + metade da altura do corpo)
+        // 🛡️ CRIAÇÃO AUTOMÁTICA DE PISO: Adiciona um piso sólido gigante logo abaixo do spawn para nunca mais cair
+        const virtualFloor = new THREE.Box3(
+            new THREE.Vector3(-1000, mapSpawnPoint.y - 3.5, -1000),
+            new THREE.Vector3(1000, mapSpawnPoint.y - 2.8, 1000)
+        );
+        collidables.push(virtualFloor);
+
+        // 🎯 Posiciona o jogador exatamente com os pés no chão desde o primeiro instante
         camera.position.set(mapSpawnPoint.x, mapSpawnPoint.y + (playerHeight / 2), mapSpawnPoint.z);
         velocity.set(0, 0, 0); 
         window.spawnApplied = true;
@@ -462,7 +469,7 @@ function animate() {
         // 3. Gravidade e Movimento Vertical
         camera.position.y += velocity.y * delta;
 
-        // 4. Colisão Vertical com as Caixas e Pisos do Mapa
+        // 4. Colisão Vertical com o Piso e Caixas do Mapa
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
         canJump = false;
 
@@ -485,8 +492,8 @@ function animate() {
             }
         }
 
-        // Resgate caso caia para fora do mapa
-        if (camera.position.y < -50) { 
+        // Resgate caso caia por algum motivo extremo
+        if (camera.position.y < mapSpawnPoint.y - 50) { 
             camera.position.set(mapSpawnPoint.x, mapSpawnPoint.y + (playerHeight / 2), mapSpawnPoint.z);
             velocity.set(0, 0, 0);
         }
