@@ -44,14 +44,15 @@ export function buildMapGeometries(scene) {
                     return;
                 }
 
-                // REMOVIDO: DoubleSide. Se você nascer dentro de uma parede, 
-                // ela ficará transparente por dentro e você enxergará o mapa!
-
                 child.castShadow = true;
                 child.receiveShadow = true;
 
                 wallMeshes.push(child);
                 mapWallMeshes.push(child);
+
+                // 🛑 A MÁGICA ACONTECE AQUI: Cria a caixa de colisão física e joga na array
+                const boundingBox = new THREE.Box3().setFromObject(child);
+                collidables.push(boundingBox);
             });
 
             scene.add(mapModel);
