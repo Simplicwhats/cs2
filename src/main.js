@@ -436,39 +436,23 @@ function animate() {
             moveDir.normalize();
         }
 
-        // Altura dos pés declarada apenas uma vez aqui
-        const playerFeet = camera.position.y - (playerHeight / 2);
+        // 🎯 COLISÃO POR RAYCASTER: Impede de atravessar paredes, portas e caixas sem prender o jogador
+        if (moveDir.lengthSq() > 0 && wallMeshes && wallMeshes.length > 0) {
+            const raycaster = new THREE.Raycaster(camera.position, moveDir, 0, 0.7); // Distância de alcance do toque na parede
+            const intersects = raycaster.intersectObjects(wallMeshes, false);
 
-        // 1. Movimento e Colisão no Eixo X
-        if (moveDir.lengthSq() > 0) {
-            camera.position.x += moveDir.x * speed * delta;
-            playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
-            for (let box of collidables) {
-                if (box.max.y <= playerFeet + 0.1) continue; // Ignora o chão
-
-                if (playerBox.intersectsBox(box)) {
-                    camera.position.x -= moveDir.x * speed * delta;
-                    break;
-                }
+            // Se não houver obstáculo muito perto, move o personagem
+            if (intersects.length === 0 || intersects[0].distance > 0.5) {
+                camera.position.addScaledVector(moveDir, speed * delta);
             }
-
-            // 2. Movimento e Colisão no Eixo Z
-            camera.position.z += moveDir.z * speed * delta;
-            playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
-            for (let box of collidables) {
-                if (box.max.y <= playerFeet + 0.1) continue; // Ignora o chão
-
-                if (playerBox.intersectsBox(box)) {
-                    camera.position.z -= moveDir.z * speed * delta;
-                    break;
-                }
-            }
+        } else if (moveDir.lengthSq() > 0) {
+            camera.position.addScaledVector(moveDir, speed * delta);
         }
 
-        // 3. Gravidade e Movimento Vertical
+        // Gravidade e Movimento Vertical
         camera.position.y += velocity.y * delta;
 
-        // Atualiza a posição dos pés após a gravidade
+        // Chão de segurança (Base do spawn)
         const currentFeet = camera.position.y - (playerHeight / 2);
         const groundLevel = mapSpawnPoint ? mapSpawnPoint.y : 0;
 
@@ -477,22 +461,6 @@ function animate() {
             camera.position.y = groundLevel + (playerHeight / 2);
             velocity.y = 0;
             canJump = true;
-        }
-
-        // 4. Colisão com caixas baixas
-        for (let box of collidables) {
-            const boxHeight = box.max.y - box.min.y;
-            if (boxHeight < 1.8) {
-                playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
-                if (playerBox.intersectsBox(box)) {
-                    const feet = camera.position.y - (playerHeight / 2);
-                    if (velocity.y <= 0 && feet <= box.max.y && feet >= box.max.y - 0.8) {
-                        camera.position.y = box.max.y + (playerHeight / 2);
-                        velocity.y = 0;
-                        canJump = true;
-                    }
-                }
-            }
         }
 
         // Resgate seguro caso caia em buracos
