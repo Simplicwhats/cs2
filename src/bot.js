@@ -48,19 +48,26 @@ export function spawnBots(scene, botsArray, spawnPoints) {
                 console.error("Erro ao carregar a arma para o bot:", err);
             });
 
-            // 🎬 Configuração das Animações
+            // 🎬 Configuração segura das Animações
             let mixer = null;
             let actions = {};
             
             if (animations && animations.length > 0) {
                 mixer = new THREE.AnimationMixer(botModel);
+                
                 animations.forEach((clip) => {
                     const action = mixer.clipAction(clip);
                     actions[clip.name.toLowerCase()] = action;
                 });
 
-                const defaultAction = actions['run'] || actions['walk'] || actions['idle'] || animations[0];
-                if (defaultAction) {
+                // Procura por uma animação padrão de movimento ou pega a primeira do array de forma segura
+                const defaultClip = animations.find(clip => {
+                    const name = clip.name.toLowerCase();
+                    return name.includes('run') || name.includes('walk') || name.includes('idle');
+                }) || animations[0];
+
+                if (defaultClip) {
+                    const defaultAction = mixer.clipAction(defaultClip);
                     defaultAction.play();
                 }
             }
