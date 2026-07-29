@@ -462,7 +462,7 @@ function animate() {
         // 3. Gravidade e Movimento Vertical
         camera.position.y += velocity.y * delta;
 
-        // 4. Colisão Vertical com as Caixas do Mapa
+        // 4. Colisão Vertical com as Caixas e Paredes do Mapa
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
         canJump = false;
         let grounded = false;
@@ -487,18 +487,18 @@ function animate() {
             }
         }
 
-        // 🛡️ PISO DE SEGURANÇA AUTOMÁTICO: Trava o jogador na altura do chão do spawn se não houver caixa embaixo
-        const baseFloorY = mapSpawnPoint ? mapSpawnPoint.y : -7.0;
+        // 🛡️ PISO REAL DO MAPA: Ajustado para a altura exata onde o chão da Dust2 está localizado (-7.0)
+        const realGroundY = -7.0; 
         const playerFeetNow = camera.position.y - (playerHeight / 2);
         
-        if (!grounded && playerFeetNow <= baseFloorY && velocity.y <= 0) {
-            camera.position.y = baseFloorY + (playerHeight / 2);
+        if (!grounded && playerFeetNow <= realGroundY && velocity.y <= 0) {
+            camera.position.y = realGroundY + (playerHeight / 2);
             velocity.y = 0;
             canJump = true;
         }
 
-        // Resgate seguro caso caia muito abaixo do limite do mapa
-        if (camera.position.y < baseFloorY - 25) { 
+        // Resgate caso caia para muito abaixo do mapa
+        if (camera.position.y < -50) { 
             camera.position.copy(mapSpawnPoint); 
             velocity.set(0, 0, 0);
         }
