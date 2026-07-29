@@ -404,55 +404,31 @@ function animate() {
 
     if (mixer) mixer.update(delta);
 
-    const playerWidth = 0.8;
-    const playerHeight = 1.5;
+   const playerWidth = 0.8;
+        const playerHeight = 1.5;
+        const playerFeet = camera.position.y - (playerHeight / 2);
 
-    if (mapLoaded && mapSpawnPoint && !window.spawnApplied) {
-        // 🎯 Nasce perfeitamente com os pés no chão do spawn
-        camera.position.set(mapSpawnPoint.x, mapSpawnPoint.y + (playerHeight / 2), mapSpawnPoint.z);
-        velocity.set(0, 0, 0); 
-        window.spawnApplied = true;
-    }
-
-    if (pointerLocked && !isDead && !buyMenuOpen) {
-        if (isMouseDown && itemsConfig[getCurrentWeaponKey()].auto) shoot();
-
-        const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir); camDir.y = 0; camDir.normalize();
-        const camRight = new THREE.Vector3().crossVectors(camDir, camera.up).normalize();
-
-        velocity.x -= velocity.x * 10.0 * delta; 
-        velocity.z -= velocity.z * 10.0 * delta; 
-        velocity.y -= 9.8 * 3.5 * delta; 
-
-        let speed = isRunning ? 10 : 6;
-        
-        let moveDir = new THREE.Vector3();
-        if (moveF) moveDir.add(camDir);
-        if (moveB) moveDir.sub(camDir);
-        if (moveL) moveDir.sub(camRight);
-        if (moveR) moveDir.add(camRight);
-        moveDir.y = 0;
-        
+        // 1. Movimento e Colisão no Eixo X
         if (moveDir.lengthSq() > 0) {
-            moveDir.normalize();
-        }
-
-        // 1. Movimento e Colisão Horizontal (Eixos X e Z contra as paredes)
-        if (moveDir.lengthSq() > 0) {
-            // Tenta mover no X
             camera.position.x += moveDir.x * speed * delta;
             playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
             for (let box of collidables) {
+                // 🟢 Ignora o chão/superfícies que estão abaixo ou niveladas com os pés
+                if (box.max.y <= playerFeet + 0.1) continue;
+
                 if (playerBox.intersectsBox(box)) {
                     camera.position.x -= moveDir.x * speed * delta;
                     break;
                 }
             }
 
-            // Tenta mover no Z
+            // 2. Movimento e Colisão no Eixo Z
             camera.position.z += moveDir.z * speed * delta;
             playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
             for (let box of collidables) {
+                // 🟢 Ignora o chão/superfícies que estão abaixo ou niveladas com os pés
+                if (box.max.y <= playerFeet + 0.1) continue;
+
                 if (playerBox.intersectsBox(box)) {
                     camera.position.z -= moveDir.z * speed * delta;
                     break;
