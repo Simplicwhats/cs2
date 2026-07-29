@@ -420,7 +420,7 @@ function animate() {
         velocity.z -= velocity.z * 10.0 * delta; 
         velocity.y -= 9.8 * 3.5 * delta; // Gravidade equilibrada
 
-        let speed = isRunning ? 115 : 68;
+        let speed = isRunning ? 10 : 6;
         
         const proposedPos = camera.position.clone();
         if (moveF) { proposedPos.x += camDir.x * speed * delta; proposedPos.z += camDir.z * speed * delta; }
