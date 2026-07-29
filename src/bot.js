@@ -97,3 +97,42 @@ export function updateBotLogic(gameMode, isDead, bots, camera, delta, time, take
         bot.pos.copy(bot.mesh.position);
     }
 }
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+export function spawnBots(scene, botsArray, spawnPoints) {
+    const loader = new GLTFLoader();
+
+    spawnPoints.forEach((spawnPos, index) => {
+        loader.load('models/bot.glb', (gltf) => {
+            const botModel = gltf.scene;
+
+            // 🎨 APLICAÇÃO DE SKIN CS (Estilo Agente Tático)
+            botModel.traverse((child) => {
+                if (child.isMesh) {
+                    child.material = new THREE.MeshStandardMaterial({
+                        color: 0x333b42,      // Tom cinza militar tático
+                        metalness: 0.3,
+                        roughness: 0.6
+                    });
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            botModel.position.copy(spawnPos);
+            scene.add(botModel); // Adiciona na cena para aparecer visível!
+
+            botsArray.push({
+                mesh: botModel,
+                pos: botModel.position,
+                lastShot: 0,
+                strafeDir: 1,
+                id: index
+            });
+
+            console.log(`🤖 Bot ${index} criado com skin e inserido no mapa!`);
+        }, undefined, (error) => {
+            console.error("Erro ao carregar models/bot.glb:", error);
+        });
+    });
+}
