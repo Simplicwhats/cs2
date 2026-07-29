@@ -404,9 +404,12 @@ function animate() {
 
     if (mixer) mixer.update(delta);
 
+    const playerWidth = 0.8;
+    const playerHeight = 1.5;
+
     if (mapLoaded && mapSpawnPoint && !window.spawnApplied) {
-        camera.position.copy(mapSpawnPoint);
-        camera.position.y += 1.3; // 🎯 Posiciona os olhos acima do spawn para os pés ficarem no chão exato
+        // 🎯 Nasce com os pés exatamente no chão do spawn (mapSpawnPoint.y + metade da altura do corpo)
+        camera.position.set(mapSpawnPoint.x, mapSpawnPoint.y + (playerHeight / 2), mapSpawnPoint.z);
         velocity.set(0, 0, 0); 
         window.spawnApplied = true;
     }
@@ -434,10 +437,6 @@ function animate() {
             moveDir.normalize();
         }
 
-        const playerWidth = 0.8;
-        const playerHeight = 1.5;
-        const playerEyeHeight = 1.3;
-
         // 1. Movimento e Colisão no Eixo X
         if (moveDir.lengthSq() > 0) {
             camera.position.x += moveDir.x * speed * delta;
@@ -463,21 +462,19 @@ function animate() {
         // 3. Gravidade e Movimento Vertical
         camera.position.y += velocity.y * delta;
 
-        // 4. Colisão Vertical com as Caixas do Mapa
+        // 4. Colisão Vertical com as Caixas e Pisos do Mapa
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
         canJump = false;
-        let grounded = false;
 
         for (let box of collidables) {
             if (playerBox.intersectsBox(box)) {
                 const playerFeet = camera.position.y - (playerHeight / 2);
                 const playerHead = camera.position.y + (playerHeight / 2);
 
-                if (velocity.y <= 0 && playerFeet <= box.max.y && playerFeet >= box.max.y - 1.5) {
+                if (velocity.y <= 0 && playerFeet <= box.max.y && playerFeet >= box.min.y) {
                     camera.position.y = box.max.y + (playerHeight / 2);
                     velocity.y = 0;
                     canJump = true;
-                    grounded = true;
                     break;
                 }
                 else if (velocity.y > 0 && playerHead >= box.min.y && playerHead <= box.max.y) {
@@ -488,20 +485,9 @@ function animate() {
             }
         }
 
-        // 🛡️ PISO DE SEGURANÇA: Usa a altura exata do spawn para manter você em cima do mapa
-        const realGroundY = mapSpawnPoint ? mapSpawnPoint.y : -7.0; 
-        const playerFeetNow = camera.position.y - (playerHeight / 2);
-        
-        if (!grounded && playerFeetNow <= realGroundY && velocity.y <= 0) {
-            camera.position.y = realGroundY + (playerHeight / 2);
-            velocity.y = 0;
-            canJump = true;
-        }
-
-        // Resgate caso caia para muito abaixo do mapa
-        if (camera.position.y < realGroundY - 25) { 
-            camera.position.copy(mapSpawnPoint); 
-            camera.position.y += 1.3;
+        // Resgate caso caia para fora do mapa
+        if (camera.position.y < -50) { 
+            camera.position.set(mapSpawnPoint.x, mapSpawnPoint.y + (playerHeight / 2), mapSpawnPoint.z);
             velocity.set(0, 0, 0);
         }
     
