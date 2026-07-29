@@ -18,7 +18,7 @@ export const weapons = {
         tempoRecarga: 2000,
         municaoMax: 7,
         reservaMax: 35,
-        modelPath: 'assets/deagle.glb' // Mude para o caminho real do seu modelo
+        modelPath: 'models/deagle.glb' // Mude para o caminho real do seu modelo
     },
     ak47: { 
         id: 'ak47', 
@@ -30,7 +30,7 @@ export const weapons = {
         tempoRecarga: 2500,
         municaoMax: 30,
         reservaMax: 90,
-        modelPath: 'assets/ak47.glb'
+        modelPath: 'models/ak47.glb'
     },
     awp: { 
         id: 'awp', 
@@ -42,6 +42,6 @@ export const weapons = {
         tempoRecarga: 3500,
         municaoMax: 10,
         reservaMax: 30,
-        modelPath: 'assets/awp.glb'
+        modelPath: 'models/awp.glb'
     }
 };
