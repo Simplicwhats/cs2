@@ -462,23 +462,23 @@ function animate() {
         // 3. Gravidade e Movimento Vertical
         camera.position.y += velocity.y * delta;
 
-        // 4. Colisão Vertical Robusta Anti-Tunneling (Piso e Tetos)
+        // 4. Colisão Vertical com as Caixas do Mapa
         playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
         canJump = false;
+        let grounded = false;
 
         for (let box of collidables) {
             if (playerBox.intersectsBox(box)) {
                 const playerFeet = camera.position.y - (playerHeight / 2);
                 const playerHead = camera.position.y + (playerHeight / 2);
 
-                // 🟢 PISO: Se estiver caindo e os pés cruzarem a superfície superior da caixa/piso (com tolerância de 1.5 para evitar atravessar)
                 if (velocity.y <= 0 && playerFeet <= box.max.y && playerFeet >= box.max.y - 1.5) {
                     camera.position.y = box.max.y + (playerHeight / 2);
                     velocity.y = 0;
                     canJump = true;
+                    grounded = true;
                     break;
                 }
-                // 🔴 TETO: Se bater a cabeça subindo
                 else if (velocity.y > 0 && playerHead >= box.min.y && playerHead <= box.max.y) {
                     camera.position.y = box.min.y - (playerHeight / 2);
                     velocity.y = 0;
@@ -487,8 +487,18 @@ function animate() {
             }
         }
 
-        // Resgate de segurança caso caia muito abaixo do mapa
-        if (camera.position.y < -150) { 
+        // 🛡️ PISO DE SEGURANÇA AUTOMÁTICO: Trava o jogador na altura do chão do spawn se não houver caixa embaixo
+        const baseFloorY = mapSpawnPoint ? mapSpawnPoint.y : -7.0;
+        const playerFeetNow = camera.position.y - (playerHeight / 2);
+        
+        if (!grounded && playerFeetNow <= baseFloorY && velocity.y <= 0) {
+            camera.position.y = baseFloorY + (playerHeight / 2);
+            velocity.y = 0;
+            canJump = true;
+        }
+
+        // Resgate seguro caso caia muito abaixo do limite do mapa
+        if (camera.position.y < baseFloorY - 25) { 
             camera.position.copy(mapSpawnPoint); 
             velocity.set(0, 0, 0);
         }
