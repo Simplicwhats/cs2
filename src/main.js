@@ -422,7 +422,6 @@ function animate() {
 
         let speed = isRunning ? 10 : 6;
         
-        // Direção de movimento normalizada
         let moveDir = new THREE.Vector3();
         if (moveF) moveDir.add(camDir);
         if (moveB) moveDir.sub(camDir);
@@ -438,9 +437,8 @@ function animate() {
         const playerHeight = 1.5;
         const playerEyeHeight = 1.3;
 
-        // 🛑 COLISÃO POR EIXO SEPARADO (Impossível atravessar paredes)
+        // 1. Movimento e Colisão no Eixo X
         if (moveDir.lengthSq() > 0) {
-            // 1. Tenta mover no Eixo X
             camera.position.x += moveDir.x * speed * delta;
             playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
             for (let box of collidables) {
@@ -450,7 +448,7 @@ function animate() {
                 }
             }
 
-            // 2. Tenta mover no Eixo Z
+            // 2. Movimento e Colisão no Eixo Z
             camera.position.z += moveDir.z * speed * delta;
             playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
             for (let box of collidables) {
@@ -461,24 +459,28 @@ function animate() {
             }
         }
 
-        // Gravidade Vertical
+        // 3. Gravidade e Movimento Vertical
         camera.position.y += velocity.y * delta;
 
-        // 🎯 RAYCASTER DE SOLO
-        downRaycaster.set(camera.position, downVector);
-        const hits = downRaycaster.intersectObjects(wallMeshes, false);
+        // 4. Colisão Vertical com as Caixas do Mapa e Piso Sólido (Garante o Pouso)
+        playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
+        canJump = false;
 
-        if (hits.length > 0) {
-            const groundHit = hits[0];
-            if (groundHit.distance <= playerEyeHeight + 0.4 && velocity.y <= 0) {
-                camera.position.y = groundHit.point.y + playerEyeHeight;
-                velocity.y = 0;
-                canJump = true;
+        for (let box of collidables) {
+            if (playerBox.intersectsBox(box)) {
+                const feetY = camera.position.y - (playerHeight / 2);
+                // Se estiver caindo e batendo no topo de qualquer caixa/piso
+                if (velocity.y <= 0 && feetY >= box.max.y - 0.8 && feetY <= box.max.y + 1.2) {
+                    camera.position.y = box.max.y + (playerHeight / 2);
+                    velocity.y = 0;
+                    canJump = true;
+                    break;
+                }
             }
         }
 
-        // Resgate se cair no void
-        if (camera.position.y < mapSpawnPoint.y - 50) { 
+        // Resgate seguro caso caia muito abaixo do mapa
+        if (camera.position.y < -100) { 
             camera.position.copy(mapSpawnPoint); 
             velocity.set(0, 0, 0);
         }
