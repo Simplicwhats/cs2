@@ -408,14 +408,7 @@ function animate() {
     const playerHeight = 1.5;
 
     if (mapLoaded && mapSpawnPoint && !window.spawnApplied) {
-        // 🛡️ CRIAÇÃO AUTOMÁTICA DE PISO: Adiciona um piso sólido gigante logo abaixo do spawn para nunca mais cair
-        const virtualFloor = new THREE.Box3(
-            new THREE.Vector3(-1000, mapSpawnPoint.y - 3.5, -1000),
-            new THREE.Vector3(1000, mapSpawnPoint.y - 2.8, 1000)
-        );
-        collidables.push(virtualFloor);
-
-        // 🎯 Posiciona o jogador exatamente com os pés no chão desde o primeiro instante
+        // 🎯 Nasce perfeitamente com os pés no chão do spawn
         camera.position.set(mapSpawnPoint.x, mapSpawnPoint.y + (playerHeight / 2), mapSpawnPoint.z);
         velocity.set(0, 0, 0); 
         window.spawnApplied = true;
@@ -444,8 +437,9 @@ function animate() {
             moveDir.normalize();
         }
 
-        // 1. Movimento e Colisão no Eixo X
+        // 1. Movimento e Colisão Horizontal (Eixos X e Z contra as paredes)
         if (moveDir.lengthSq() > 0) {
+            // Tenta mover no X
             camera.position.x += moveDir.x * speed * delta;
             playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
             for (let box of collidables) {
@@ -455,7 +449,7 @@ function animate() {
                 }
             }
 
-            // 2. Movimento e Colisão no Eixo Z
+            // Tenta mover no Z
             camera.position.z += moveDir.z * speed * delta;
             playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
             for (let box of collidables) {
@@ -466,34 +460,38 @@ function animate() {
             }
         }
 
-        // 3. Gravidade e Movimento Vertical
+        // 2. Gravidade e Movimento Vertical
         camera.position.y += velocity.y * delta;
 
-        // 4. Colisão Vertical com o Piso e Caixas do Mapa
-        playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
+        // 3. Chão Sólido Principal (Baseado na altura do spawn para NUNCA cair e NUNCA ir pro céu)
+        const groundLevel = mapSpawnPoint ? mapSpawnPoint.y : 0;
+        const playerFeet = camera.position.y - (playerHeight / 2);
+
         canJump = false;
+        if (playerFeet <= groundLevel) {
+            camera.position.y = groundLevel + (playerHeight / 2);
+            velocity.y = 0;
+            canJump = true;
+        }
 
+        // 4. Colisão apenas com caixas baixas (para poder subir em cima de objetos sem bugar paredes)
         for (let box of collidables) {
-            if (playerBox.intersectsBox(box)) {
-                const playerFeet = camera.position.y - (playerHeight / 2);
-                const playerHead = camera.position.y + (playerHeight / 2);
-
-                if (velocity.y <= 0 && playerFeet <= box.max.y && playerFeet >= box.min.y) {
-                    camera.position.y = box.max.y + (playerHeight / 2);
-                    velocity.y = 0;
-                    canJump = true;
-                    break;
-                }
-                else if (velocity.y > 0 && playerHead >= box.min.y && playerHead <= box.max.y) {
-                    camera.position.y = box.min.y - (playerHeight / 2);
-                    velocity.y = 0;
-                    break;
+            const boxHeight = box.max.y - box.min.y;
+            if (boxHeight < 1.8) { // Ignora paredes altas, foca só em caixas/obstáculos baixos
+                playerBox.setFromCenterAndSize(camera.position, new THREE.Vector3(playerWidth, playerHeight, playerWidth));
+                if (playerBox.intersectsBox(box)) {
+                    const feet = camera.position.y - (playerHeight / 2);
+                    if (velocity.y <= 0 && feet <= box.max.y && feet >= box.max.y - 0.8) {
+                        camera.position.y = box.max.y + (playerHeight / 2);
+                        velocity.y = 0;
+                        canJump = true;
+                    }
                 }
             }
         }
 
-        // Resgate caso caia por algum motivo extremo
-        if (camera.position.y < mapSpawnPoint.y - 50) { 
+        // Resgate seguro caso caia em algum buraco extremo do mapa
+        if (camera.position.y < groundLevel - 50) { 
             camera.position.set(mapSpawnPoint.x, mapSpawnPoint.y + (playerHeight / 2), mapSpawnPoint.z);
             velocity.set(0, 0, 0);
         }
