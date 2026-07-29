@@ -8,7 +8,7 @@ export let mapWallMeshes = [];
 export let mapLoaded = false;
 
 // Ponto de nascimento zerado no centro
-export let mapSpawnPoint = new THREE.Vector3(0, 3.0, 0); 
+export let mapSpawnPoint = new THREE.Vector3(0, 8.0, 0); 
 
 export function buildMapGeometries(scene) {
     collidables.length = 0;
@@ -38,7 +38,7 @@ export function buildMapGeometries(scene) {
             mapModel.updateMatrixWorld(true);
 
             // 3. JOGADOR NASCE NO CENTRO ZERADO E POUCO ACIMA DO CHÃO
-            mapSpawnPoint.set(0, 3.0, 0);
+            mapSpawnPoint.set(0, 9.0, 0);
 
             mapModel.traverse((child) => {
                 if (!child.isMesh) return;
