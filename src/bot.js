@@ -23,7 +23,7 @@ export function spawnBots(scene, botsArray, spawnPoints) {
             scene.add(botModel);
 
             // 🔫 Carrega e anexa a arma na mão do bot
-            loader.load('models/ak47.glb', (weaponGltf) => {
+            loader.load('models/deagle.glb', (weaponGltf) => {
                 const weaponModel = weaponGltf.scene;
                 weaponModel.scale.set(0.25, 0.25, 0.25); 
                 weaponModel.rotation.set(0, Math.PI / 2, 0); 
