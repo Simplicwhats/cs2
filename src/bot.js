@@ -9,18 +9,22 @@ export function spawnBots(scene, botsArray, spawnPoints) {
 
     spawnPoints.forEach((spawnPos, index) => {
         loader.load('models/bot.glb?v=2', (gltf) => {
-            const botModel = gltf.scene;
-            const animations = gltf.animations;
+    const botModel = gltf.scene;
+    const animations = gltf.animations;
 
-            botModel.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                }
-            });
+    // 📏 AJUSTE DE ESCALA DO BOT
+    // Se ele estiver gigante, experimente diminuir para 0.5, 0.3 ou até 0.1
+    botModel.scale.set(0.5, 0.5, 0.5); 
 
-            botModel.position.copy(spawnPos);
-            scene.add(botModel);
+    botModel.traverse((child) => {
+        if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+        }
+    });
+
+    botModel.position.copy(spawnPos);
+    scene.add(botModel);
 
             // 🔫 Carrega e anexa a arma na mão do bot
             loader.load('models/deagle.glb', (weaponGltf) => {
@@ -118,8 +122,9 @@ export function updateBotLogic(gameMode, isDead, bots, camera, delta, time, take
                 const distToTarget = dirToTarget.length();
                 dirToTarget.normalize();
 
+                // 🔍 CORREÇÃO DO TIRO ATRAVÉS DA PAREDE: Mudado de 'false' para 'true' (checa filhos/grupos)
                 const ray = new THREE.Raycaster(botEyes, dirToTarget, 0, distToTarget);
-                const hits = ray.intersectObjects(wallMeshes, false);
+                const hits = ray.intersectObjects(wallMeshes, true);
 
                 if (hits.length === 0) {
                     hasLOS = true;
@@ -131,6 +136,7 @@ export function updateBotLogic(gameMode, isDead, bots, camera, delta, time, take
         bot.mesh.lookAt(camera.position.x, bot.mesh.position.y, camera.position.z);
 
         if (hasLOS) {
+            // Só atira se realmente tiver linha de visão limpa
             if (time - bot.lastShot > 750) { 
                 bot.lastShot = time; 
                 playShootSound('deagle'); 
@@ -147,29 +153,36 @@ export function updateBotLogic(gameMode, isDead, bots, camera, delta, time, take
                 }
             }
             
+            // Movimento de strafe (lateral) com checagem de colisão rigorosa
             const dirToPlayer = new THREE.Vector3().subVectors(camera.position, botEyes).normalize();
             const strafeVetor = new THREE.Vector3().crossVectors(dirToPlayer, new THREE.Vector3(0,1,0)).normalize();
             const oldPos = bot.mesh.position.clone();
+            
             bot.mesh.position.addScaledVector(strafeVetor, 3.8 * bot.strafeDir * delta);
             
-            botBox.setFromCenterAndSize(bot.mesh.position, new THREE.Vector3(1.0, 1.8, 1.0));
+            botBox.setFromCenterAndSize(bot.mesh.position, new THREE.Vector3(1.2, 1.8, 1.2));
+            let collides = false;
             for (let box of collidables) {
                 if (botBox.intersectsBox(box)) { 
-                    bot.mesh.position.copy(oldPos); 
-                    bot.strafeDir *= -1; 
+                    collides = true; 
                     break; 
                 }
+            }
+            if (collides) {
+                bot.mesh.position.copy(oldPos); 
+                bot.strafeDir *= -1; 
             }
             if (Math.random() < 0.015) bot.strafeDir *= -1;
         } 
         else {
+            // Movimento patrulhando/andando quando não te vê
             const oldPos = bot.mesh.position.clone();
             const moveVetor = new THREE.Vector3();
             bot.mesh.getWorldDirection(moveVetor); moveVetor.y = 0; moveVetor.normalize();
 
             bot.mesh.position.addScaledVector(moveVetor, 4.8 * delta); 
             
-            botBox.setFromCenterAndSize(bot.mesh.position, new THREE.Vector3(1.0, 1.8, 1.0));
+            botBox.setFromCenterAndSize(bot.mesh.position, new THREE.Vector3(1.2, 1.8, 1.2));
             let collides = false;
             for (let box of collidables) {
                 if (botBox.intersectsBox(box)) { 
@@ -187,4 +200,3 @@ export function updateBotLogic(gameMode, isDead, bots, camera, delta, time, take
         bot.pos.copy(bot.mesh.position);
     }
 }
-
