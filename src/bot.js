@@ -25,7 +25,7 @@ export function spawnBots(scene, botsArray, spawnPoints) {
             // 🔫 Carrega e anexa a arma na mão do bot
             loader.load('models/deagle.glb', (weaponGltf) => {
                 const weaponModel = weaponGltf.scene;
-                weaponModel.scale.set(0.25, 0.25, 0.25); 
+                weaponModel.scale.set(0.008, 0.25, 0.25); 
                 weaponModel.rotation.set(0, Math.PI / 2, 0); 
                 weaponModel.position.set(0.05, -0.05, 0.1);
 
