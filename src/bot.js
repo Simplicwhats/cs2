@@ -187,3 +187,4 @@ export function updateBotLogic(gameMode, isDead, bots, camera, delta, time, take
         bot.pos.copy(bot.mesh.position);
     }
 }
+
