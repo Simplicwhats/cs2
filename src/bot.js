@@ -8,7 +8,7 @@ export function spawnBots(scene, botsArray, spawnPoints) {
     const loader = new GLTFLoader();
 
     spawnPoints.forEach((spawnPos, index) => {
-        loader.load('models/bot.glb', (gltf) => {
+        loader.load('models/bots.glb', (gltf) => {
             const botModel = gltf.scene;
             const animations = gltf.animations;
 
