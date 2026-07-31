@@ -1,12 +1,14 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+export let collidables = []; // Exportação mantida para evitar o SyntaxError no main.js
 export let wallMeshes = [];
 export let mapWallMeshes = [];
 export let mapLoaded = false;
 export let mapSpawnPoint = new THREE.Vector3(0, 1.0, 0); 
 
 export function buildMapGeometries(scene) {
+    collidables.length = 0;
     wallMeshes.length = 0;
     mapWallMeshes.length = 0;
     mapLoaded = false;
@@ -44,6 +46,6 @@ export function buildMapGeometries(scene) {
 
         scene.add(mapModel);
         mapLoaded = true;
-        console.log("✅ Mapa carregado com física baseada em Raycaster!");
+        console.log("✅ Mapa carregado com sucesso!");
     });
 }
