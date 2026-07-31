@@ -1,4 +1,3 @@
-// src/main.js
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -78,7 +77,15 @@ window.addEventListener('DOMContentLoaded', () => {
         if (roomInput) roomInput.value = roomParam;
         
         const onlineBtn = document.getElementById('mode-online');
-        if (onlineBtn) onlineBtn.click();
+        const botBtn = document.getElementById('mode-bot');
+        const netSection = document.getElementById('net-link-section');
+        
+        if (onlineBtn && botBtn && netSection) {
+            onlineBtn.classList.add('active');
+            botBtn.classList.remove('active');
+            netSection.style.display = 'block';
+            gameMode = 'online';
+        }
     }
 });
 
@@ -250,8 +257,11 @@ function initMultiplayer() {
     peer = new Peer(myId, PEER_CONFIG);
 
     peer.on('open', (id) => {
-        document.getElementById('kill-feed').innerText = "Procurando sala...";
-        document.getElementById('kill-feed').style.display = 'block';
+        const killFeed = document.getElementById('kill-feed');
+        if (killFeed) {
+            killFeed.innerText = "Procurando sala...";
+            killFeed.style.display = 'block';
+        }
         
         const hostId = "host_" + roomId;
         if (id === hostId) {
@@ -262,7 +272,9 @@ function initMultiplayer() {
         conn = peer.connect(hostId, { reliable: true });
         
         conn.on('open', () => {
-            document.getElementById('kill-feed').innerText = "Conectado à sala com sucesso!";
+            if (killFeed) {
+                killFeed.innerText = "Conectado à sala com sucesso!";
+            }
             peers[hostId] = conn;
             conn.send({ type: 'join', id: peer.id, nick: playerNick });
         });
@@ -277,8 +289,10 @@ function initMultiplayer() {
 
     peer.on('error', (err) => {
         console.error("Erro geral no PeerJS:", err);
-        if (err.type === 'unavailable-id') {
-            document.getElementById('kill-feed').innerText = "Sala já existe. Entrando como jogador...";
+        const killFeed = document.getElementById('kill-feed');
+        if (err.type === 'unavailable-id' && killFeed) {
+            killFeed.innerText = "Sala já existe. Entrando como jogador...";
+            killFeed.style.display = 'block';
         }
     });
 
@@ -317,11 +331,13 @@ function setupAsHost() {
         const baseUrl = window.location.origin + window.location.pathname;
         const roomLink = `${baseUrl}?room=${roomId}`;
         
-        // Copia automaticamente o link da sala para facilitar o envio aos amigos
         navigator.clipboard?.writeText(roomLink).catch(() => {});
 
-        document.getElementById('kill-feed').innerText = "Sala criada! Link copiado para a área de transferência. Aguardando amigos...";
-        document.getElementById('kill-feed').style.display = 'block';
+        const killFeed = document.getElementById('kill-feed');
+        if (killFeed) {
+            killFeed.innerText = "Sala criada! Link copiado para a área de transferência. Aguardando amigos...";
+            killFeed.style.display = 'block';
+        }
     });
 
     peer.on('connection', (incomingConn) => {
