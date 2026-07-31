@@ -524,6 +524,11 @@ btnStart.addEventListener('click', () => {
     gameMode = document.querySelector('.mode-btn.active').id === 'mode-bot' ? 'bot' : 'online';
     document.getElementById('lobby-container').style.display = 'none';
     
+    // CORREÇÃO: MOSTRANDO A HUD!
+    document.getElementById('hud-bottom-left').style.display = 'flex';
+    document.getElementById('hud-bottom-right').style.display = 'flex';
+    document.getElementById('buy-hint').style.display = 'block';
+    
     window.spawnApplied = false; 
     initGameEngine();
     
