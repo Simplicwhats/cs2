@@ -32,16 +32,15 @@ let currentWeaponModel = null;
 let mixer = null; 
 const gltfLoader = new GLTFLoader();
 
-// Variáveis globais unificadas (sem duplicatas)
 let bots = [];
 let activeGrenades = [], tracers = [], networkPlayers = {}, playerScores = {}; 
 const cameraEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 let playerBox = new THREE.Box3();
 
-// Raycaster dedicado para fixar os pés no chão real da Dust2
 const downRaycaster = new THREE.Raycaster();
 const downVector = new THREE.Vector3(0, -1, 0);
 
+// --- MULTIPLAYER GLOBAL VARS ---
 let peer, conn;
 let peers = {};
 let isHost = false;
@@ -53,7 +52,6 @@ const buyMenu = document.getElementById('buy-menu');
 const crosshairElem = document.getElementById('crosshair');
 const scopeOverlay = document.getElementById('scope-overlay');
 
-// ESCALAS E POSIÇÕES CORRIGIDAS E CENTRALIZADAS (X = 0)
 const weaponScales = {
     deagle: { scale: 0.008, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
     p90:    { scale: 0.12,  pos: new THREE.Vector3(0, -0.15, -0.35) }, 
@@ -222,6 +220,7 @@ function initGameEngine() {
     if (gameMode === 'online') initMultiplayer();
 }
 
+// --- MULTIPLAYER ENGINE ROBUSTO ---
 function initMultiplayer() {
     const roomId = document.getElementById('room-id').value || "dust2-server";
     const myId = playerNick + "_" + Math.floor(Math.random() * 10000);
@@ -229,57 +228,133 @@ function initMultiplayer() {
     peer = new Peer(myId, { host: '0.peerjs.com', port: 443, secure: true, debug: 1 });
 
     peer.on('open', (id) => {
-        document.getElementById('kill-feed').innerText = "Buscando servidor...";
+        document.getElementById('kill-feed').innerText = "Procurando sala...";
         document.getElementById('kill-feed').style.display = 'block';
         
-        conn = peer.connect("host_" + roomId);
+        const hostId = "host_" + roomId;
+        if (id === hostId) {
+            setupAsHost();
+            return;
+        }
+
+        conn = peer.connect(hostId);
         
         conn.on('open', () => {
-            document.getElementById('kill-feed').innerText = "Conectado ao Host!";
+            document.getElementById('kill-feed').innerText = "Conectado ao Servidor!";
+            peers[hostId] = conn;
             conn.send({ type: 'join', nick: playerNick });
         });
 
+        conn.on('data', handleNetworkData);
+
         conn.on('error', () => {
-            isHost = true;
-            peer.destroy();
-            peer = new Peer("host_" + roomId, { host: '0.peerjs.com', port: 443, secure: true });
-            peer.on('open', () => { document.getElementById('kill-feed').innerText = "Servidor Criado. Aguardando jogadores..."; });
-            peer.on('connection', handleIncomingConnection);
+            setupAsHost();
         });
     });
 
-    peer.on('connection', handleIncomingConnection);
+    peer.on('connection', (incomingConn) => {
+        incomingConn.on('open', () => {
+            peers[incomingConn.peer] = incomingConn;
+        });
+        incomingConn.on('data', (data) => handleNetworkData(data, incomingConn.peer));
+        incomingConn.on('close', () => {
+            removeNetworkPlayer(incomingConn.peer);
+            delete peers[incomingConn.peer];
+        });
+    });
 }
 
-function handleIncomingConnection(connection) {
-    peers[connection.peer] = connection;
-    createNetworkPlayer(connection.peer, "Inimigo"); 
+function setupAsHost() {
+    isHost = true;
+    const roomId = document.getElementById('room-id').value || "dust2-server";
     
-    connection.on('data', (data) => {
-        if (data.type === 'pos') {
-            const netPlayer = networkPlayers[connection.peer];
-            if (netPlayer) {
-                netPlayer.position.lerp(new THREE.Vector3(data.x, data.y, data.z), 0.3);
-                netPlayer.rotation.y = data.rot;
-            }
-        }
-        if (data.type === 'shoot') playShootSound();
+    if (peer) peer.destroy();
+    
+    const hostId = "host_" + roomId;
+    peer = new Peer(hostId, { host: '0.peerjs.com', port: 443, secure: true });
+
+    peer.on('open', () => {
+        document.getElementById('kill-feed').innerText = "Servidor Criado! Aguardando jogadores...";
+        document.getElementById('kill-feed').style.display = 'block';
     });
+
+    peer.on('connection', (incomingConn) => {
+        incomingConn.on('open', () => {
+            peers[incomingConn.peer] = incomingConn;
+        });
+
+        incomingConn.on('data', (data) => {
+            handleNetworkData(data, incomingConn.peer);
+            
+            if (isHost) {
+                Object.keys(peers).forEach(peerId => {
+                    if (peerId !== incomingConn.peer && peers[peerId].open) {
+                        peers[peerId].send(data);
+                    }
+                });
+            }
+        });
+
+        incomingConn.on('close', () => {
+            removeNetworkPlayer(incomingConn.peer);
+            delete peers[incomingConn.peer];
+        });
+    });
+}
+
+function handleNetworkData(data, senderId) {
+    if (data.type === 'pos') {
+        let netPlayer = networkPlayers[data.id];
+        if (!netPlayer) {
+            netPlayer = createNetworkPlayer(data.id, data.nick || "Inimigo");
+        }
+        netPlayer.position.lerp(new THREE.Vector3(data.x, data.y, data.z), 0.3);
+        netPlayer.rotation.y = data.rot;
+    } else if (data.type === 'shoot') {
+        playShootSound();
+    } else if (data.type === 'join') {
+        console.log(`${data.nick} entrou na partida.`);
+    }
 }
 
 function sendNetworkData() {
     if (!peer || gameMode !== 'online') return;
-    const posData = { type: 'pos', x: camera.position.x, y: camera.position.y - 0.8, z: camera.position.z, rot: cameraEuler.y };
-    Object.values(peers).forEach(c => { if (c.open) c.send(posData); });
+    const posData = { 
+        type: 'pos', 
+        id: peer.id, 
+        nick: playerNick,
+        x: camera.position.x, 
+        y: camera.position.y - 0.8, 
+        z: camera.position.z, 
+        rot: cameraEuler.y 
+    };
+    
+    Object.values(peers).forEach(c => { 
+        if (c && c.open) c.send(posData); 
+    });
 }
 
 function createNetworkPlayer(id, nick) {
+    if (networkPlayers[id]) return networkPlayers[id];
+
     const g = new THREE.Group();
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.5, 0.4), new THREE.MeshStandardMaterial({ color: 0xff0000 }));
+    const torso = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 1.5, 0.4), 
+        new THREE.MeshStandardMaterial({ color: 0xe0a96d })
+    );
     torso.position.y = 0.75;
     g.add(torso);
     scene.add(g);
+    
     networkPlayers[id] = g;
+    return g;
+}
+
+function removeNetworkPlayer(id) {
+    if (networkPlayers[id]) {
+        scene.remove(networkPlayers[id]);
+        delete networkPlayers[id];
+    }
 }
 
 function shoot() {
@@ -298,7 +373,9 @@ function shoot() {
         setTimeout(() => crosshairElem.style.transform = "translate(-50%, -50%) scale(1)", 150);
     }
 
-    if (gameMode === 'online') { Object.values(peers).forEach(c => { if (c.open) c.send({ type: 'shoot' }); }); }
+    if (gameMode === 'online') { 
+        Object.values(peers).forEach(c => { if (c && c.open) c.send({ type: 'shoot' }); }); 
+    }
 
     cameraEuler.x += cfg.recoil || 0.015;
     camera.quaternion.setFromEuler(cameraEuler);
@@ -414,7 +491,6 @@ function animate() {
         velocity.set(0, 0, 0); 
         window.spawnApplied = true;
 
-        // 🤖 DISPARA O SPAWN DOS BOTS ASSIM QUE O MAPA CARREGA
         if (gameMode === 'bot' && bots.length === 0) {
             const botSpawns = [
                 new THREE.Vector3(mapSpawnPoint.x + 5, mapSpawnPoint.y, mapSpawnPoint.z + 5),
@@ -448,7 +524,6 @@ function animate() {
             moveDir.normalize();
         }
 
-        // 1. Colisão Horizontal (Paredes) via Raycaster
         if (moveDir.lengthSq() > 0 && wallMeshes && wallMeshes.length > 0) {
             const raycaster = new THREE.Raycaster(camera.position, moveDir, 0, 0.7);
             const intersects = raycaster.intersectObjects(wallMeshes, false);
@@ -460,10 +535,8 @@ function animate() {
             camera.position.addScaledVector(moveDir, speed * delta);
         }
 
-        // 2. Gravidade e Movimento Vertical
         camera.position.y += velocity.y * delta;
 
-        // 3. DETECÇÃO DE CHÃO REAL POR RAYCASTER VERTICAL
         canJump = false;
         let grounded = false;
 
@@ -502,7 +575,6 @@ function animate() {
             camera.quaternion.setFromEuler(cameraEuler); 
         }
 
-        // 🤖 ATUALIZA A INTELIGÊNCIA E MOVIMENTO DOS BOTS A CADA FRAME
         updateBotLogic(gameMode, isDead, bots, camera, delta, time, (damageAmount) => {
             hp -= damageAmount;
             updateHUD();
@@ -524,12 +596,10 @@ btnStart.addEventListener('click', () => {
     gameMode = document.querySelector('.mode-btn.active').id === 'mode-bot' ? 'bot' : 'online';
     document.getElementById('lobby-container').style.display = 'none';
     
-    // Mostra HUD que estava invisível
     document.getElementById('hud-bottom-left').style.display = 'flex';
     document.getElementById('hud-bottom-right').style.display = 'flex';
     document.getElementById('buy-hint').style.display = 'block';
     
-    // CORREÇÃO: Reseta array de bots para eles nascerem toda vez que você apertar Start
     bots.length = 0; 
     window.spawnApplied = false; 
     
