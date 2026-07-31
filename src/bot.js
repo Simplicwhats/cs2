@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { wallMeshes, collidables } from './map.js';
+import { wallMeshes } from './map.js'; 
 import { playShootSound } from './audio.js';
 
 export function spawnBots(scene, botsArray, spawnPoints) {
@@ -12,7 +12,6 @@ export function spawnBots(scene, botsArray, spawnPoints) {
             const animations = gltf.animations;
 
             botModel.scale.set(0.5, 0.5, 0.5); 
-
             botModel.traverse((child) => {
                 if (child.isMesh) {
                     child.castShadow = true;
@@ -31,53 +30,28 @@ export function spawnBots(scene, botsArray, spawnPoints) {
 
                 let rightHandBone = null;
                 botModel.traverse((child) => {
-                    if (child.isBone) {
-                        const boneName = child.name.toLowerCase();
-                        if (boneName.includes('righthand') || boneName.includes('hand_r') || boneName.includes('right_hand')) {
-                            rightHandBone = child;
-                        }
+                    if (child.isBone && (child.name.toLowerCase().includes('righthand') || child.name.toLowerCase().includes('hand_r'))) {
+                        rightHandBone = child;
                     }
                 });
-
-                if (rightHandBone) {
-                    rightHandBone.add(weaponModel);
-                } else {
-                    botModel.add(weaponModel);
-                }
-            }, undefined, (err) => {
-                console.error("Erro ao carregar a arma para o bot:", err);
+                
+                if (rightHandBone) rightHandBone.add(weaponModel);
+                else botModel.add(weaponModel);
             });
 
             let mixer = null;
-            let actions = {};
-            
             if (animations && animations.length > 0) {
                 mixer = new THREE.AnimationMixer(botModel);
-                animations.forEach((clip) => {
-                    const action = mixer.clipAction(clip);
-                    actions[clip.name.toLowerCase()] = action;
-                });
-
-                const defaultClip = animations.find(clip => {
-                    const name = clip.name.toLowerCase();
-                    return name.includes('run') || name.includes('walk') || name.includes('idle');
-                }) || animations[0];
-
-                if (defaultClip) {
-                    const defaultAction = mixer.clipAction(defaultClip);
-                    defaultAction.play();
-                }
+                const action = mixer.clipAction(animations[0]);
+                action.play();
             }
 
             botsArray.push({
                 mesh: botModel,
-                pos: botModel.position,
-                initialY: spawnPos.y, 
+                initialY: spawnPos.y,
                 lastShot: 0,
                 strafeDir: 1,
-                id: index,
-                mixer: mixer,
-                actions: actions
+                mixer: mixer
             });
         });
     });
@@ -86,104 +60,87 @@ export function spawnBots(scene, botsArray, spawnPoints) {
 export function updateBotLogic(gameMode, isDead, bots, camera, delta, time, takeDamage) {
     if (gameMode !== 'bot' || isDead) return;
 
-    const raycaster = new THREE.Raycaster();
-    const botBox = new THREE.Box3();
+    // Laser para visão, colisão e chão
+    const sightRay = new THREE.Raycaster();
+    const wallRay = new THREE.Raycaster();
+    const floorRay = new THREE.Raycaster();
 
     for (let bot of bots) {
         if (!bot.mesh) continue;
-
         if (bot.mixer) bot.mixer.update(delta);
 
         const botEyes = bot.mesh.position.clone().add(new THREE.Vector3(0, 1.6, 0));
         const distToPlayer = botEyes.distanceTo(camera.position);
+        let hasLOS = false;
 
         // 1. VISÃO DO BOT
-        let hasLOS = false;
         if (distToPlayer < 75) {
             const dirToTarget = new THREE.Vector3().subVectors(camera.position, botEyes);
-            const distToTarget = dirToTarget.length();
-            dirToTarget.normalize();
-
-            raycaster.set(botEyes, dirToTarget);
-            const hits = raycaster.intersectObjects(wallMeshes, true);
-
-            // Só te vê se não tiver parede na frente
-            if (hits.length === 0 || hits[0].distance >= distToTarget) {
-                hasLOS = true;
+            // Proteção contra NaN (Not a Number) se estiver na mesma coordenada
+            if (dirToTarget.lengthSq() > 0.01) {
+                dirToTarget.normalize();
+                sightRay.set(botEyes, dirToTarget);
+                const hits = sightRay.intersectObjects(wallMeshes, false);
+                if (hits.length === 0 || hits[0].distance >= distToPlayer) {
+                    hasLOS = true;
+                }
             }
         }
 
         let moveDir = new THREE.Vector3();
         let moveSpeed = 0;
 
-        // 2. COMPORTAMENTO E MIRA
+        // 2. MIRA E COMPORTAMENTO
         if (hasLOS) {
-            // CORREÇÃO: Ele SÓ olha para você se tiver visão! Fim do "radar".
             bot.mesh.lookAt(camera.position.x, bot.mesh.position.y, camera.position.z);
 
             if (time - bot.lastShot > 1200) { 
                 bot.lastShot = time; 
                 playShootSound('deagle'); 
-                
-                const hitChance = Math.max(0.05, 0.35 - (distToPlayer / 100));
-                
-                if (Math.random() < hitChance) {
+                if (Math.random() < Math.max(0.05, 0.35 - (distToPlayer / 100))) {
                     takeDamage(12);
                 }
             }
             
-            const dirToPlayer = new THREE.Vector3().subVectors(camera.position, bot.mesh.position).normalize();
-            dirToPlayer.y = 0;
-            const strafeVetor = new THREE.Vector3().crossVectors(dirToPlayer, new THREE.Vector3(0,1,0)).normalize();
-            moveDir.copy(strafeVetor).multiplyScalar(bot.strafeDir);
-            moveSpeed = 3.5 * delta;
+            const dirToPlayer = new THREE.Vector3().subVectors(camera.position, bot.mesh.position);
+            dirToPlayer.y = 0; 
+            
+            if (dirToPlayer.lengthSq() > 0.1) {
+                dirToPlayer.normalize();
+                const strafeVetor = new THREE.Vector3().crossVectors(dirToPlayer, new THREE.Vector3(0,1,0)).normalize();
+                moveDir.copy(strafeVetor).multiplyScalar(bot.strafeDir);
+                moveSpeed = 3.5 * delta;
+            }
 
             if (Math.random() < 0.02) bot.strafeDir *= -1;
-        } 
-        else {
+        } else {
             bot.mesh.getWorldDirection(moveDir);
             moveDir.y = 0;
-            moveDir.normalize();
+            if (moveDir.lengthSq() > 0.1) moveDir.normalize();
             moveSpeed = 4.5 * delta;
         }
 
-        // 3. MOVIMENTAÇÃO COM COLISÃO ABSOLUTA
-        const oldPos = bot.mesh.position.clone();
-        
-        bot.mesh.position.x += moveDir.x * moveSpeed;
-        botBox.setFromCenterAndSize(bot.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)), new THREE.Vector3(1.2, 1.8, 1.2));
-        let hitWallX = false;
-        for (let box of collidables) {
-            if (botBox.intersectsBox(box)) { hitWallX = true; break; }
-        }
-        if (hitWallX) {
-            bot.mesh.position.x = oldPos.x; 
-            bot.strafeDir *= -1;
-            bot.mesh.rotation.y += Math.PI * 0.5; // SEMPRE vira quando bate
+        // 3. MOVIMENTO COM COLISÃO EM PAREDES (RAYCASTER, SEM TRAVAR NO CHÃO)
+        if (moveDir.lengthSq() > 0.1) {
+            wallRay.set(bot.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)), moveDir);
+            const wallHits = wallRay.intersectObjects(wallMeshes, false);
+            
+            if (wallHits.length > 0 && wallHits[0].distance < 1.0) {
+                bot.strafeDir *= -1;
+                bot.mesh.rotation.y += Math.PI * 0.5; // Vira quando encurralado
+            } else {
+                bot.mesh.position.addScaledVector(moveDir, moveSpeed);
+            }
         }
 
-        bot.mesh.position.z += moveDir.z * moveSpeed;
-        botBox.setFromCenterAndSize(bot.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)), new THREE.Vector3(1.2, 1.8, 1.2));
-        let hitWallZ = false;
-        for (let box of collidables) {
-            if (botBox.intersectsBox(box)) { hitWallZ = true; break; }
-        }
-        if (hitWallZ) {
-            bot.mesh.position.z = oldPos.z; 
-            bot.strafeDir *= -1;
-            bot.mesh.rotation.y += Math.PI * 0.5; 
-        }
-
-        // 📌 CORREÇÃO: GRAVIDADE REAL - Impede que ele afunde usando raycaster pro chão
-        const downRay = new THREE.Raycaster(bot.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), new THREE.Vector3(0, -1, 0), 0, 5);
-        const floorIntersects = downRay.intersectObjects(wallMeshes, false);
+        // 4. GRAVIDADE EXATA
+        floorRay.set(bot.mesh.position.clone().add(new THREE.Vector3(0, 1.5, 0)), new THREE.Vector3(0, -1, 0));
+        const floorHits = floorRay.intersectObjects(wallMeshes, false);
         
-        if (floorIntersects.length > 0) {
-            bot.mesh.position.y = floorIntersects[0].point.y; 
+        if (floorHits.length > 0) {
+            bot.mesh.position.y = floorHits[0].point.y; 
         } else {
-            bot.mesh.position.y = bot.initialY; // fallback de segurança
+            bot.mesh.position.y = bot.initialY;
         }
-
-        bot.pos.copy(bot.mesh.position);
     }
 }
