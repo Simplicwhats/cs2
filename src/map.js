@@ -48,11 +48,16 @@ export function buildMapGeometries(scene) {
 
                 wallMeshes.push(child);
                 mapWallMeshes.push(child);
+                
+                // CORREÇÃO: Cria a caixa de colisão física e adiciona pro bot bater nela
+                child.geometry.computeBoundingBox();
+                const box = new THREE.Box3().setFromObject(child);
+                collidables.push(box);
             });
 
             scene.add(mapModel);
             mapLoaded = true;
-            console.log("✅ Mapa carregado com sucesso!");
+            console.log("✅ Mapa carregado com sucesso! Colisões ativadas.");
         },
         undefined,
         (err) => {
