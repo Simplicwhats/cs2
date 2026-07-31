@@ -1,4 +1,3 @@
-// src/bot.js
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { wallMeshes, collidables } from './map.js';
@@ -73,15 +72,13 @@ export function spawnBots(scene, botsArray, spawnPoints) {
             botsArray.push({
                 mesh: botModel,
                 pos: botModel.position,
-                initialY: spawnPos.y, // 📌 GRAVA A ALTURA EXATA DO CHÃO PARA ELE NÃO AFUNDAR
+                initialY: spawnPos.y, 
                 lastShot: 0,
                 strafeDir: 1,
                 id: index,
                 mixer: mixer,
                 actions: actions
             });
-
-            console.log(`🤖 Bot ${index} criado com sucesso no mapa!`);
         });
     });
 }
@@ -116,23 +113,22 @@ export function updateBotLogic(gameMode, isDead, bots, camera, delta, time, take
             }
         }
 
-        bot.mesh.lookAt(camera.position.x, bot.mesh.position.y, camera.position.z);
-
         let moveDir = new THREE.Vector3();
         let moveSpeed = 0;
 
         // 2. COMPORTAMENTO E MIRA
         if (hasLOS) {
-            // 🎯 NERF DA MIRA: Agora atira mais devagar (a cada 1.2s) e erra muito mais
+            // CORREÇÃO: Ele SÓ olha para você se tiver visão! Fim do "radar".
+            bot.mesh.lookAt(camera.position.x, bot.mesh.position.y, camera.position.z);
+
             if (time - bot.lastShot > 1200) { 
                 bot.lastShot = time; 
                 playShootSound('deagle'); 
                 
-                // Chance máxima de 35% de perto, caindo até 5% de longe
                 const hitChance = Math.max(0.05, 0.35 - (distToPlayer / 100));
                 
                 if (Math.random() < hitChance) {
-                    takeDamage(12); // Dano reduzido
+                    takeDamage(12);
                 }
             }
             
@@ -151,10 +147,9 @@ export function updateBotLogic(gameMode, isDead, bots, camera, delta, time, take
             moveSpeed = 4.5 * delta;
         }
 
-        // 3. MOVIMENTAÇÃO COM COLISÃO ABSOLUTA (Não atravessa paredes)
+        // 3. MOVIMENTAÇÃO COM COLISÃO ABSOLUTA
         const oldPos = bot.mesh.position.clone();
         
-        // Testa andar no eixo X
         bot.mesh.position.x += moveDir.x * moveSpeed;
         botBox.setFromCenterAndSize(bot.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)), new THREE.Vector3(1.2, 1.8, 1.2));
         let hitWallX = false;
@@ -162,12 +157,11 @@ export function updateBotLogic(gameMode, isDead, bots, camera, delta, time, take
             if (botBox.intersectsBox(box)) { hitWallX = true; break; }
         }
         if (hitWallX) {
-            bot.mesh.position.x = oldPos.x; // Bateu na parede? Volta o passo.
+            bot.mesh.position.x = oldPos.x; 
             bot.strafeDir *= -1;
-            if (!hasLOS) bot.mesh.rotation.y += Math.PI * 0.5; // Vira se estiver patrulhando
+            bot.mesh.rotation.y += Math.PI * 0.5; // SEMPRE vira quando bate
         }
 
-        // Testa andar no eixo Z
         bot.mesh.position.z += moveDir.z * moveSpeed;
         botBox.setFromCenterAndSize(bot.mesh.position.clone().add(new THREE.Vector3(0, 0.9, 0)), new THREE.Vector3(1.2, 1.8, 1.2));
         let hitWallZ = false;
@@ -175,13 +169,20 @@ export function updateBotLogic(gameMode, isDead, bots, camera, delta, time, take
             if (botBox.intersectsBox(box)) { hitWallZ = true; break; }
         }
         if (hitWallZ) {
-            bot.mesh.position.z = oldPos.z; // Bateu na parede? Volta o passo.
+            bot.mesh.position.z = oldPos.z; 
             bot.strafeDir *= -1;
-            if (!hasLOS) bot.mesh.rotation.y += Math.PI * 0.5;
+            bot.mesh.rotation.y += Math.PI * 0.5; 
         }
 
-        // 📌 TRAVA DE PISO: Impede que ele afunde ou voe (Mantém a altura de onde nasceu)
-        bot.mesh.position.y = bot.initialY;
+        // 📌 CORREÇÃO: GRAVIDADE REAL - Impede que ele afunde usando raycaster pro chão
+        const downRay = new THREE.Raycaster(bot.mesh.position.clone().add(new THREE.Vector3(0, 1, 0)), new THREE.Vector3(0, -1, 0), 0, 5);
+        const floorIntersects = downRay.intersectObjects(wallMeshes, false);
+        
+        if (floorIntersects.length > 0) {
+            bot.mesh.position.y = floorIntersects[0].point.y; 
+        } else {
+            bot.mesh.position.y = bot.initialY; // fallback de segurança
+        }
 
         bot.pos.copy(bot.mesh.position);
     }
