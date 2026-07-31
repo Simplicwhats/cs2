@@ -220,7 +220,7 @@ function initGameEngine() {
     if (gameMode === 'online') initMultiplayer();
 }
 
-// --- MULTIPLAYER ENGINE ROBUSTO ---
+// --- MULTIPLAYER ENGINE ROBUSTO (4 JOGADORES) ---
 function initMultiplayer() {
     const roomId = document.getElementById('room-id').value || "dust2-server";
     const myId = playerNick + "_" + Math.floor(Math.random() * 10000);
@@ -240,13 +240,12 @@ function initMultiplayer() {
         conn = peer.connect(hostId);
         
         conn.on('open', () => {
-            document.getElementById('kill-feed').innerText = "Conectado ao Servidor!";
+            document.getElementById('kill-feed').innerText = "Conectado à sala!";
             peers[hostId] = conn;
-            conn.send({ type: 'join', nick: playerNick });
+            conn.send({ type: 'join', id: peer.id, nick: playerNick });
         });
 
         conn.on('data', handleNetworkData);
-
         conn.on('error', () => {
             setupAsHost();
         });
@@ -256,7 +255,17 @@ function initMultiplayer() {
         incomingConn.on('open', () => {
             peers[incomingConn.peer] = incomingConn;
         });
-        incomingConn.on('data', (data) => handleNetworkData(data, incomingConn.peer));
+        incomingConn.on('data', (data) => {
+            handleNetworkData(data, incomingConn.peer);
+            
+            if (isHost) {
+                Object.keys(peers).forEach(peerId => {
+                    if (peerId !== incomingConn.peer && peers[peerId] && peers[peerId].open) {
+                        peers[peerId].send(data);
+                    }
+                });
+            }
+        });
         incomingConn.on('close', () => {
             removeNetworkPlayer(incomingConn.peer);
             delete peers[incomingConn.peer];
@@ -274,7 +283,7 @@ function setupAsHost() {
     peer = new Peer(hostId, { host: '0.peerjs.com', port: 443, secure: true });
 
     peer.on('open', () => {
-        document.getElementById('kill-feed').innerText = "Servidor Criado! Aguardando jogadores...";
+        document.getElementById('kill-feed').innerText = "Sala criada! Aguardando amigos...";
         document.getElementById('kill-feed').style.display = 'block';
     });
 
@@ -286,13 +295,11 @@ function setupAsHost() {
         incomingConn.on('data', (data) => {
             handleNetworkData(data, incomingConn.peer);
             
-            if (isHost) {
-                Object.keys(peers).forEach(peerId => {
-                    if (peerId !== incomingConn.peer && peers[peerId].open) {
-                        peers[peerId].send(data);
-                    }
-                });
-            }
+            Object.keys(peers).forEach(peerId => {
+                if (peerId !== incomingConn.peer && peers[peerId] && peers[peerId].open) {
+                    peers[peerId].send(data);
+                }
+            });
         });
 
         incomingConn.on('close', () => {
@@ -306,14 +313,18 @@ function handleNetworkData(data, senderId) {
     if (data.type === 'pos') {
         let netPlayer = networkPlayers[data.id];
         if (!netPlayer) {
-            netPlayer = createNetworkPlayer(data.id, data.nick || "Inimigo");
+            netPlayer = createNetworkPlayer(data.id, data.nick || "Amigo");
         }
         netPlayer.position.lerp(new THREE.Vector3(data.x, data.y, data.z), 0.3);
         netPlayer.rotation.y = data.rot;
     } else if (data.type === 'shoot') {
         playShootSound();
-    } else if (data.type === 'join') {
-        console.log(`${data.nick} entrou na partida.`);
+    } else if (data.type === 'player_died') {
+        console.log(`Jogador ${data.id} foi eliminado por ${data.killer}`);
+    } else if (data.type === 'hit') {
+        if (data.targetId === peer.id) {
+            damagePlayer(data.damage, data.attackerNick, data.weapon);
+        }
     }
 }
 
@@ -324,7 +335,7 @@ function sendNetworkData() {
         id: peer.id, 
         nick: playerNick,
         x: camera.position.x, 
-        y: camera.position.y - 0.8, 
+        y: camera.position.y - 0.75, 
         z: camera.position.z, 
         rot: cameraEuler.y 
     };
@@ -340,7 +351,7 @@ function createNetworkPlayer(id, nick) {
     const g = new THREE.Group();
     const torso = new THREE.Mesh(
         new THREE.BoxGeometry(0.5, 1.5, 0.4), 
-        new THREE.MeshStandardMaterial({ color: 0xe0a96d })
+        new THREE.MeshStandardMaterial({ color: 0x3366cc })
     );
     torso.position.y = 0.75;
     g.add(torso);
@@ -355,6 +366,61 @@ function removeNetworkPlayer(id) {
         scene.remove(networkPlayers[id]);
         delete networkPlayers[id];
     }
+}
+
+// --- SISTEMA DE DANO, MORTE E RESPAWN AUTOMÁTICO ---
+function damagePlayer(amount, killerName = "Inimigo", weaponName = "Arma") {
+    if (isDead) return;
+    hp -= amount;
+    updateHUD();
+    
+    if (hp <= 0) {
+        triggerDeath(killerName, weaponName);
+    }
+}
+
+function triggerDeath(killerName, weaponName) {
+    isDead = true;
+    document.exitPointerLock();
+
+    Object.values(peers).forEach(c => {
+        if (c && c.open) c.send({ type: 'player_died', id: peer ? peer.id : 'local', killer: killerName });
+    });
+
+    let deathScreen = document.getElementById('death-screen');
+    if (!deathScreen) {
+        deathScreen = document.createElement('div');
+        deathScreen.id = 'death-screen';
+        deathScreen.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(150,0,0,0.5);display:flex;flex-direction:column;justify-content:center;align-items:center;color:white;font-family:sans-serif;z-index:9999;';
+        document.body.appendChild(deathScreen);
+    }
+    
+    deathScreen.innerHTML = `
+        <h1 style="font-size: 3rem; margin: 0 0 10px 0;">VOCÊ MORREU</h1>
+        <p style="font-size: 1.5rem; margin: 0;">Morto por: <strong>${killerName}</strong> (${weaponName})</p>
+        <p style="font-size: 1.2rem; margin: 10px 0 0 0; color: #ffcccb;">Respawn em 5 segundos...</p>
+    `;
+    deathScreen.style.display = 'flex';
+
+    setTimeout(() => {
+        respawnPlayer();
+    }, 5000);
+}
+
+function respawnPlayer() {
+    isDead = false;
+    hp = 100;
+    
+    const deathScreen = document.getElementById('death-screen');
+    if (deathScreen) deathScreen.style.display = 'none';
+
+    if (mapSpawnPoint) {
+        camera.position.set(mapSpawnPoint.x, mapSpawnPoint.y + 0.75, mapSpawnPoint.z);
+    }
+    velocity.set(0, 0, 0);
+    updateHUD();
+    
+    document.body.requestPointerLock();
 }
 
 function shoot() {
@@ -576,12 +642,7 @@ function animate() {
         }
 
         updateBotLogic(gameMode, isDead, bots, camera, delta, time, (damageAmount) => {
-            hp -= damageAmount;
-            updateHUD();
-            if (hp <= 0) {
-                isDead = true;
-                document.exitPointerLock();
-            }
+            damagePlayer(damageAmount, "Bot Combatente", "Rifle IA");
         });
 
         sendNetworkData();
