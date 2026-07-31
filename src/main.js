@@ -7,7 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { itemsConfig, safeSpawns } from './config.js';
 import { playShootSound, playExplosionSound, playReloadSound } from './audio.js';
-import { buildMapGeometries, collidables, wallMeshes, mapWallMeshes, mapSpawnPoint, mapLoaded } from './map.js';
+import { buildMapGeometries, wallMeshes, mapWallMeshes, mapSpawnPoint, mapLoaded } from './map.js';
 import { updateBotLogic, spawnBots } from './bot.js';
 
 let gameMode = 'bot';
