@@ -46,7 +46,7 @@ let peers = {};
 let isHost = false;
 
 const PEER_CONFIG = {
-    host: 'peerjs-server.herokuapp.com',
+    host: '0.peerjs.com',
     port: 443,
     secure: true,
     path: '/',
@@ -67,6 +67,20 @@ const weaponScales = {
     m4a4:   { scale: 0.020, pos: new THREE.Vector3(0, -0.15, -0.35) }, 
     awp:    { scale: 0.004, pos: new THREE.Vector3(0, -0.15, -0.35), rot: new THREE.Euler(0, 1.57, 0) },  
 };
+
+// --- AUTO-DETECT ROOM VIA URL PARAMETER (?room=...) ---
+window.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomParam = urlParams.get('room');
+    
+    if (roomParam) {
+        const roomInput = document.getElementById('room-id');
+        if (roomInput) roomInput.value = roomParam;
+        
+        const onlineBtn = document.getElementById('mode-online');
+        if (onlineBtn) onlineBtn.click();
+    }
+});
 
 function preloadWeapons() {
     const weaponsToLoad = ['ak47', 'm4a4', 'awp', 'deagle', 'p90'];
@@ -228,7 +242,7 @@ function initGameEngine() {
     if (gameMode === 'online') initMultiplayer();
 }
 
-// --- MULTIPLAYER USANDO SERVIDOR ALTERNATIVO ESTÁVEL ---
+// --- MULTIPLAYER COM SUPORTE A LINK DIRETO ---
 function initMultiplayer() {
     const roomId = document.getElementById('room-id').value.trim() || "dust2-server";
     const myId = playerNick.replace(/[^a-zA-Z0-9]/g, '') + "_" + Math.floor(Math.random() * 10000);
@@ -300,7 +314,13 @@ function setupAsHost() {
     peer = new Peer(hostId, PEER_CONFIG);
 
     peer.on('open', () => {
-        document.getElementById('kill-feed').innerText = "Sala criada! Aguardando seus 3 amigos...";
+        const baseUrl = window.location.origin + window.location.pathname;
+        const roomLink = `${baseUrl}?room=${roomId}`;
+        
+        // Copia automaticamente o link da sala para facilitar o envio aos amigos
+        navigator.clipboard?.writeText(roomLink).catch(() => {});
+
+        document.getElementById('kill-feed').innerText = "Sala criada! Link copiado para a área de transferência. Aguardando amigos...";
         document.getElementById('kill-feed').style.display = 'block';
     });
 
