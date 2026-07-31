@@ -24,7 +24,7 @@ export function spawnBots(scene, botsArray, spawnPoints) {
             botModel.position.copy(spawnPos);
             scene.add(botModel);
 
-            loader.load('models/ak47.glb', (weaponGltf) => {
+            loader.load('models/deagle.glb', (weaponGltf) => {
                 const weaponModel = weaponGltf.scene;
                 weaponModel.scale.set(0.25, 0.25, 0.25); 
                 weaponModel.rotation.set(0, Math.PI / 2, 0); 
