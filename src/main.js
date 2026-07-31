@@ -220,12 +220,18 @@ function initGameEngine() {
     if (gameMode === 'online') initMultiplayer();
 }
 
-// --- MULTIPLAYER ENGINE ROBUSTO (4 JOGADORES) ---
+// --- MULTIPLAYER OTIMIZADO PARA GITHUB PAGES (HTTPS) ---
 function initMultiplayer() {
-    const roomId = document.getElementById('room-id').value || "dust2-server";
-    const myId = playerNick + "_" + Math.floor(Math.random() * 10000);
+    const roomId = document.getElementById('room-id').value.trim() || "dust2-server";
+    const myId = playerNick.replace(/[^a-zA-Z0-9]/g, '') + "_" + Math.floor(Math.random() * 10000);
     
-    peer = new Peer(myId, { host: '0.peerjs.com', port: 443, secure: true, debug: 1 });
+    peer = new Peer(myId, {
+        host: '0.peerjs.com',
+        secure: true,
+        port: 443,
+        path: '/',
+        debug: 2
+    });
 
     peer.on('open', (id) => {
         document.getElementById('kill-feed').innerText = "Procurando sala...";
@@ -237,18 +243,27 @@ function initMultiplayer() {
             return;
         }
 
-        conn = peer.connect(hostId);
+        conn = peer.connect(hostId, { reliable: true });
         
         conn.on('open', () => {
-            document.getElementById('kill-feed').innerText = "Conectado à sala!";
+            document.getElementById('kill-feed').innerText = "Conectado à sala com sucesso!";
             peers[hostId] = conn;
             conn.send({ type: 'join', id: peer.id, nick: playerNick });
         });
 
         conn.on('data', handleNetworkData);
-        conn.on('error', () => {
+        
+        conn.on('error', (err) => {
+            console.error("Erro na conexão com o host:", err);
             setupAsHost();
         });
+    });
+
+    peer.on('error', (err) => {
+        console.error("Erro geral no PeerJS:", err);
+        if (err.type === 'unavailable-id') {
+            document.getElementById('kill-feed').innerText = "Sala já existe. Entrando como jogador...";
+        }
     });
 
     peer.on('connection', (incomingConn) => {
@@ -275,15 +290,20 @@ function initMultiplayer() {
 
 function setupAsHost() {
     isHost = true;
-    const roomId = document.getElementById('room-id').value || "dust2-server";
+    const roomId = document.getElementById('room-id').value.trim() || "dust2-server";
     
     if (peer) peer.destroy();
     
     const hostId = "host_" + roomId;
-    peer = new Peer(hostId, { host: '0.peerjs.com', port: 443, secure: true });
+    peer = new Peer(hostId, {
+        host: '0.peerjs.com',
+        secure: true,
+        port: 443,
+        path: '/'
+    });
 
     peer.on('open', () => {
-        document.getElementById('kill-feed').innerText = "Sala criada! Aguardando amigos...";
+        document.getElementById('kill-feed').innerText = "Sala criada! Aguardando seus 3 amigos...";
         document.getElementById('kill-feed').style.display = 'block';
     });
 
