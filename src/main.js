@@ -40,10 +40,18 @@ let playerBox = new THREE.Box3();
 const downRaycaster = new THREE.Raycaster();
 const downVector = new THREE.Vector3(0, -1, 0);
 
-// --- MULTIPLAYER GLOBAL VARS ---
+// --- MULTIPLAYER GLOBAL VARS & CONFIG ---
 let peer, conn;
 let peers = {};
 let isHost = false;
+
+const PEER_CONFIG = {
+    host: 'peerjs-server.herokuapp.com',
+    port: 443,
+    secure: true,
+    path: '/',
+    debug: 2
+};
 
 const btnStart = document.getElementById('btn-start');
 const container = document.getElementById('canvas-container');
@@ -220,18 +228,12 @@ function initGameEngine() {
     if (gameMode === 'online') initMultiplayer();
 }
 
-// --- MULTIPLAYER OTIMIZADO PARA GITHUB PAGES (HTTPS) ---
+// --- MULTIPLAYER USANDO SERVIDOR ALTERNATIVO ESTÁVEL ---
 function initMultiplayer() {
     const roomId = document.getElementById('room-id').value.trim() || "dust2-server";
     const myId = playerNick.replace(/[^a-zA-Z0-9]/g, '') + "_" + Math.floor(Math.random() * 10000);
     
-    peer = new Peer(myId, {
-        host: '0.peerjs.com',
-        secure: true,
-        port: 443,
-        path: '/',
-        debug: 2
-    });
+    peer = new Peer(myId, PEER_CONFIG);
 
     peer.on('open', (id) => {
         document.getElementById('kill-feed').innerText = "Procurando sala...";
@@ -295,12 +297,7 @@ function setupAsHost() {
     if (peer) peer.destroy();
     
     const hostId = "host_" + roomId;
-    peer = new Peer(hostId, {
-        host: '0.peerjs.com',
-        secure: true,
-        port: 443,
-        path: '/'
-    });
+    peer = new Peer(hostId, PEER_CONFIG);
 
     peer.on('open', () => {
         document.getElementById('kill-feed').innerText = "Sala criada! Aguardando seus 3 amigos...";
